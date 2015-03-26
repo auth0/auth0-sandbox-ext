@@ -37,7 +37,7 @@ The [package.json](https://github.com/auth0/auth0-sandbox-ext/blob/master/packag
 The [test code](https://github.com/auth0/auth0-sandbox-ext/blob/master/test/tests.js) follows this pattern: 
 
 1. The *.env* file is loaded and secret paramaters added to `process.env`. In this case they include AWS credentials and parameters to connect to a DynamoDB table.  
-2. The [webtask code](https://github.com/auth0/auth0-sandbox-ext/blob/master/webtask/revoke_dynamodb.js) to be tested is loaded and comiled into a callable JavaScript function using `eval` - just like it will be in the Auth0 Webtask runtime. 
+2. The [webtask code](https://github.com/auth0/auth0-sandbox-ext/blob/master/webtask/revoke_dynamodb.js) to be tested is loaded and compiled into a callable JavaScript function using `eval` - just like it will be in the Auth0 Webtask runtime. 
 3. The `context`, `req`, and `res` arguments of the webtask function are mocked within the test code itself. The secret parameters from the *.env* file are added to `context.data`. The `req` object is constructed on a per-test basis. The `res.{writeHead|write|end}` is mocked to capture the response data. 
 4. When the mock of `res.end` is called, a callback function is invoked that returns control to test code and allows it to perform validation checks. 
 
