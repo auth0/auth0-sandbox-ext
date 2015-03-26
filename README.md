@@ -18,7 +18,7 @@ The PUT endpoint revokes a JWT token identified with the `jti` identifier. The `
 HTTP GET /?jti={jti}
 ```
 
-The GET endpoint checks the revocation status of a JWT token with specific `jti` value. HTTP 200 status code indicates the token is revoked (i.e. the information about that token is present in the revocation database). HTTP 404 status code indicates the token is not revoked (i.e. no information about that token was not found in the revocation database). Other codes indicate error conditions in the revocation check itself. 
+The GET endpoint checks the revocation status of a JWT token with specific `jti` value. HTTP 200 status code indicates the token is revoked (i.e. the information about that token is present in the revocation database). HTTP 404 status code indicates the token is not revoked (i.e. no information about that token was found in the revocation database). Other codes indicate error conditions in the revocation check itself. 
 
 ## Webtask code
 
