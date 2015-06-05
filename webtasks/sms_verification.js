@@ -28,9 +28,9 @@ return function (ctx, cb) {
                 email_verified: false
             })
         }, function (error, res, body) {
-            if (error) return {
+            if (error) {
                 console.log('Failed to initialize SMS verification to ', ctx.data.phone, 'with error', error);
-                cb(error);
+                return cb(error);
             }
             if (res.statusCode < 200 || res.statusCode > 299) {
                 console.log('Failed to initialize SMS verification to ', ctx.data.phone, 'with HTTP status', res.statusCode, 'and body' + body);
