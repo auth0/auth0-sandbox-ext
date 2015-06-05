@@ -33,20 +33,20 @@ return function (ctx, cb) {
                 return cb(error);
             }
             if (res.statusCode < 200 || res.statusCode > 299) {
-                console.log('Failed to initialize SMS verification to ', ctx.data.phone, 'with HTTP status', res.statusCode, 'and body' + body);
-                var error = new Error('Unable to initiate SMS verification.');
-                error.code = res.statusCode;
-                error.details = body;
-                return cb(error);
+                var msg = 'Unable to initiate SMS verification to ' 
+                    + ctx.data.phone + ' with HTTP status ' + res.statusCode 
+                    + ' and body ' + body;
+                console.log(msg);
+                return cb(new Error(msg));
             }
             try {
                 body = JSON.parse(body);
             }
             catch (e) {
-                console.log('Failed to initialize SMS verification to ', ctx.data.phone, 'with response body' + body);
-                var error = new Error('Invalid response from Auth0.');
-                error.details = body;
-                return cb(error);
+                var msg = 'Failed to initialize SMS verification to ' + ctx.data.phone 
+                    + ' with response body ' + body;
+                console.log(msg);
+                return cb(new Error(msg));
             }
             console.log('Initiated SMS verification ', ctx.data.phone);
             cb(null, body);
