@@ -48,7 +48,7 @@ return function (ctx, cb) {
             }
             console.log('Successful SMS verification ', ctx.data.phone);
             cb(null, body);
-        }
+        });
     }
     else {
 
