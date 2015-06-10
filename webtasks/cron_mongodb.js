@@ -25,7 +25,6 @@ var webtask = function (context, req, res) {
         var now = new Date();
         
         var item = {
-            _id: context.data.container + "." + context.data.name,
             state: 'active',
             schedule: context.data.schedule,
             token: context.data.token,
@@ -41,7 +40,8 @@ var webtask = function (context, req, res) {
         return withMongoCollection(context.data.MONGO_COLLECTION)
             .then(function (coll) {
                 return coll.findOneAndUpdateAsync({
-                    _id: item._id,
+                    container: item.container,
+                    name: item.name,
                 }, item, {
                     returnOriginal: false,
                     upsert: true,
