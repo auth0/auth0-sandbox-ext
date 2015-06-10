@@ -1,11 +1,10 @@
+var _ = require('lodash');
+var Bluebird = require('bluebird');
+
 var mongo;
 
 
 var webtask = function (context, req, res) {
-    //if (!Bluebird) Bluebird = require('bluebird');
-    var _ = require('lodash');
-    var Bluebird = require('bluebird');
-    
     var action = validate_method({
         put_job: 'PUT',
         get_job: 'GET',
@@ -16,10 +15,13 @@ var webtask = function (context, req, res) {
         release_reservation: 'DELETE',
     });
     
+    if (!validate_params(['MONGO_COLLECTION']))
+        return;
+    
     if (action === 'put_job') {
         // Create or update a scheduled webtask
         
-        if (!validate_params(['MONGO_COLLECTION', 'container', 'name', 'schedule', 'token']))
+        if (!validate_params(['container', 'name', 'schedule', 'token']))
             return;
             
         var now = new Date();
@@ -73,7 +75,8 @@ var webtask = function (context, req, res) {
                         var filter = {
                             next_available_at: {
                                 $lte: now
-                            }
+                            },
+                            state: 'active',
                         };
                         var update = {
                             $set: {
@@ -90,7 +93,6 @@ var webtask = function (context, req, res) {
                     .filter(Boolean);
                 
             })
-            // .get('value')
             .then(function (data) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
@@ -103,16 +105,17 @@ var webtask = function (context, req, res) {
     // Helper methods
     
     function withMongoDb () {
-        if (mongo) return Bluebird.resolve(mongo);
+        if (mongo) return mongo;
         
         var MongoClient = require('mongodb').MongoClient;
         var connect = Bluebird.promisify(MongoClient.connect, MongoClient);
         
         return connect(context.data.MONGO_URL)
             .then(function (db) {
-                mongo = db;
+                // Store the settled promise resolving to the db object
+                mongo = Bluebird.resolve(db);
                 
-                return mongo;
+                return db;
             });
     }
     
