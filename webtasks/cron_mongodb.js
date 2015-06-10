@@ -8,8 +8,9 @@ var webtask = function (context, req, res) {
     var action = validate_method({
         put_job: 'PUT',
         get_job: 'GET',
-        delete_job: 'DELETE',
+        destroy_job: 'DELETE',
         list_jobs: 'GET',
+        job_history: 'GET',
         reserve_jobs: 'POST',
         renew_reservation: 'PUT',
         release_reservation: 'DELETE',
@@ -100,6 +101,79 @@ var webtask = function (context, req, res) {
             .catch(function (err) {
                 error(err.statusCode || 500, err);
             });
+    } else if (action === 'list_jobs') {
+        // List all scheduled webtasks or only those in a container passed via query
+        
+        return withMongoCollection(context.data.MONGO_COLLECTION)
+            .then(function (coll) {
+                var query = {};
+                
+                // Both admin and user will hit this endpoint. When admin, container can be unset
+                if (context.data.container) query.container = context.data.container;
+                
+                // TODO (ggoodman): Pagination logic
+                return coll.findAsync(query)
+                    .then(function (cursor) {
+                        return Bluebird.promisify(cursor.toArray, cursor)();
+                    });
+            })
+            .then(function (data) {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify(data));
+            })
+            .catch(function (err) {
+                error(err.statusCode || 500, err);
+            });
+    
+    } else if (action === 'get_job') {
+        // Get a single scheduled webtask
+        
+        if (!validate_params(['container', 'name']))
+            return;
+            
+        return withMongoCollection(context.data.MONGO_COLLECTION)
+            .then(function (coll) {
+                var query = {
+                    container: context.data.container,
+                    name: context.data.name,
+                };
+                
+                return coll.findOneAsync(query, {});
+            })
+            .then(function (data) {
+                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify(data));
+            })
+            .catch(function (err) {
+                error(err.statusCode || 500, err);
+            });
+    
+    } else if (action === 'destroy_job') {
+        // Get a single scheduled webtask
+        
+        if (!validate_params(['container', 'name']))
+            return;
+            
+        return withMongoCollection(context.data.MONGO_COLLECTION)
+            .then(function (coll) {
+                var filter = {
+                    container: context.data.container,
+                    name: context.data.name,
+                };
+                
+                return coll.deleteOne(filter, {w: 1});
+            })
+            .then(function (data) {
+                res.writeHead(204);
+                res.end();
+            })
+            .catch(function (err) {
+                error(err.statusCode || 500, err);
+            });
+    
+    } else {
+        res.writeHead(404);
+        res.end('Method not found');
     }
     
     // Helper methods
