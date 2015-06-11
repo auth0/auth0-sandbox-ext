@@ -194,6 +194,8 @@ var webtask = function (context, req, res) {
             });
     
     } else {
+        // TODO (ggoodman): Consider: https://github.com/auth0/auth0-sandbox-ext/pull/1#discussion_r32170649
+        
         res.writeHead(404);
         res.end('Method not found');
     }
