@@ -23,7 +23,7 @@ return function (ctx, cb) {
                 password: ctx.data.verification_code,
                 connection: 'sms',
                 grant_type: 'password',
-                scope: 'openid profile'
+                scope: 'openid webtask'
             })
         }, function (error, res, body) {
             if (error) {
