@@ -93,6 +93,22 @@ var webtask = function (context, req, res) {
                             .get('value'); // Only pull out the value
                         
                     }, {concurrency: 1}) // Serial mapping
+                    // Don't prevent one failure from blocking the entire
+                    // reservation (that would mean extra waiting on those that
+                    // didn't fail)
+                    .settle()
+                    // Log errors and continue with safe fallback
+                    .map(function (result) {
+                        if (result.isRejected()) {
+                            console.log("Error: findOneAndUpdate failed ", result.reason());
+                            return null;
+                        } else {
+                            return result.value();
+                        }
+                    })
+                    // Elminate error queries and queries that did not match
+                    // (this is the case when there are fewer than N jobs
+                    // available for running now)
                     .filter(Boolean);
                 
             })
