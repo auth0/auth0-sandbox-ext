@@ -3,18 +3,20 @@ var Bluebird = require('bluebird');
 
 var mongo;
 
+var valid_actions = {
+    put_job: 'PUT',
+    get_job: 'GET',
+    destroy_job: 'DELETE',
+    list_jobs: 'GET',
+    job_history: 'GET',
+    reserve_jobs: 'POST',
+    renew_reservation: 'PUT',
+    release_reservation: 'DELETE',
+};
+
 
 var webtask = function (context, req, res) {
-    var action = validate_method({
-        put_job: 'PUT',
-        get_job: 'GET',
-        destroy_job: 'DELETE',
-        list_jobs: 'GET',
-        job_history: 'GET',
-        reserve_jobs: 'POST',
-        renew_reservation: 'PUT',
-        release_reservation: 'DELETE',
-    });
+    var action = validate_method(valid_actions);
     
     if (!validate_params(['MONGO_COLLECTION']))
         return;
