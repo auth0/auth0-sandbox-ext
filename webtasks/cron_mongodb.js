@@ -53,6 +53,7 @@ var webtask = function (context, req, res) {
                 });
             })
             .get('value')
+            .then(stripMongoId)
             .then(function (data) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
@@ -112,6 +113,7 @@ var webtask = function (context, req, res) {
                     .filter(Boolean);
                 
             })
+            .map(stripMongoId)
             .then(function (data) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
@@ -135,6 +137,7 @@ var webtask = function (context, req, res) {
                         return Bluebird.promisify(cursor.toArray, cursor)();
                     });
             })
+            .map(stripMongoId)
             .then(function (data) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
@@ -158,6 +161,7 @@ var webtask = function (context, req, res) {
                 
                 return coll.findOneAsync(query, {});
             })
+            .then(stripMongoId)
             .then(function (data) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
@@ -195,6 +199,12 @@ var webtask = function (context, req, res) {
     }
     
     // Helper methods
+    
+    function stripMongoId (doc) {
+        if (doc && doc._id) delete doc._id;
+        
+        return doc;
+    }
     
     function withMongoDb () {
         if (mongo) return mongo;
