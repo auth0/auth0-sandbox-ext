@@ -34,8 +34,8 @@ module.exports = function (context, req, res) {
             $set: {
                 state: 'active',
                 schedule: context.body.schedule,
-                cluster_url: context.data.cluster_url,
                 token: context.body.token,
+                cluster_url: context.data.cluster_url,
                 container: context.data.container,
                 name: context.data.name,
                 last_scheduled_at: now,
@@ -65,7 +65,7 @@ module.exports = function (context, req, res) {
                 res.end(JSON.stringify(data));
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     } else if (action === 'reserve_jobs') {
         // Reserve a set of jobs for execution
@@ -80,7 +80,6 @@ module.exports = function (context, req, res) {
                 return Bluebird.resolve(_.range(context.data.count))
                     // TODO (ggoodman): Refactor this to use reduce to avoid calling N queries if reservation fails before N
                     .map(function (n) {
-                        console.log("Attempting reservation", n);
                         var filter = {
                             next_available_at: {
                                 $lte: now
@@ -106,7 +105,6 @@ module.exports = function (context, req, res) {
                     // Log errors and continue with safe fallback
                     .map(function (result) {
                         if (result.isRejected()) {
-                            console.log("Error: findOneAndUpdate failed ", result.reason());
                             return null;
                         } else {
                             return result.value();
@@ -124,7 +122,7 @@ module.exports = function (context, req, res) {
                 res.end(JSON.stringify(data));
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     } else if (action === 'list_jobs') {
         // List all scheduled webtasks or only those in a container passed via query
@@ -148,7 +146,7 @@ module.exports = function (context, req, res) {
                 res.end(JSON.stringify(data));
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     
     } else if (action === 'get_job') {
@@ -168,11 +166,16 @@ module.exports = function (context, req, res) {
             })
             .then(stripMongoId)
             .then(function (data) {
+                if (!data) {
+                    res.writeHead(404);
+                    return res.end("Not found");
+                }
+                
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     
     } else if (action === 'destroy_job') {
@@ -207,7 +210,7 @@ module.exports = function (context, req, res) {
                 res.end();
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     
     } else if (action === 'update_job') {
@@ -219,8 +222,8 @@ module.exports = function (context, req, res) {
         if (!validate_body(['criteria', 'updates']))
             return;
             
-        if (!_.isObject(context.body.criteria)) return error(400, 'Expecting criteria to be an object');
-        if (!_.isObject(context.body.updates)) return error(400, 'Expecting updates to be an object');
+        if (!_.isObject(context.body.criteria)) return respondWithError(400, 'Expecting criteria to be an object');
+        if (!_.isObject(context.body.updates)) return respondWithError(400, 'Expecting updates to be an object');
         
         var criteria = context.body.criteria;
         var updates = context.body.updates;
@@ -283,14 +286,14 @@ module.exports = function (context, req, res) {
                 res.end(JSON.stringify(data));
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     } else if (action === 'job_history') {
         // List all scheduled webtask's result history
         
         if (!validate_params(['container', 'name']))
             return;
-        
+            
         return withMongoCollection(context.data.LOG_COLLECTION)
             .then(function (coll) {
                 var query = {
@@ -298,11 +301,13 @@ module.exports = function (context, req, res) {
                     name: context.data.name,
                 };
                 
+                var cursor = coll.find(query)
+                    .sort({created_at: -1});
+                    
+                var fetchResults = Bluebird.promisify(cursor.toArray, cursor);
+                
                 // TODO (ggoodman): Pagination logic
-                return coll.findAsync(query)
-                    .then(function (cursor) {
-                        return Bluebird.promisify(cursor.toArray, cursor)();
-                    });
+                return fetchResults();
             })
             .map(stripMongoId)
             .then(function (data) {
@@ -310,7 +315,7 @@ module.exports = function (context, req, res) {
                 res.end(JSON.stringify(data));
             })
             .catch(function (err) {
-                error(err.statusCode || 500, err);
+                respondWithError(err.statusCode || 500, err);
             });
     
     } else {
@@ -356,9 +361,9 @@ module.exports = function (context, req, res) {
         var action = context.data.action;
         var expected_method = valid_actions[action];
         
-        if (!action) return error(400, 'Missing action.');
-        if (!expected_method) return error(400, 'Invalid action.');
-        if (expected_method !== req.method) return error(405, 'Invalid method.');
+        if (!action) return respondWithError(400, 'Missing action.');
+        if (!expected_method) return respondWithError(400, 'Invalid action.');
+        if (expected_method !== req.method) return respondWithError(405, 'Invalid method.');
         
         return action;
     }
@@ -366,7 +371,7 @@ module.exports = function (context, req, res) {
     function validate_params(required_params) {
         for (var i in required_params) {
             if (typeof context.data[required_params[i]] !== 'string') {
-                return error(400, 'Missing query parameter ' + required_params[i] + '.');
+                return respondWithError(400, 'Missing query parameter ' + required_params[i] + '.');
             }
         }
         return true;
@@ -375,16 +380,19 @@ module.exports = function (context, req, res) {
     function validate_body(required_fields) {
         for (var i in required_fields) {
             if (!context.body[required_fields[i]]) {
-                return error(400, 'Missing payload parameter ' + required_fields[i] + '.');
+                return respondWithError(400, 'Missing payload parameter ' + required_fields[i] + '.');
             }
         }
         return true;
     }
 
-    function error(code, err) {
-        console.log(code + (err ? (': ' + err) : ''));
+    function respondWithError(code, err) {
+        
+        if (!_.isString(err)) err = JSON.stringify(err);
+        
         res.writeHead(code);
         res.end(err);
+        
         return false;
     }
 };
