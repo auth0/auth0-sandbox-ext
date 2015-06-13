@@ -23,12 +23,12 @@ return function (context, req, res) {
     // Authorize request
 
     if (typeof context.data.method === 'string') {
-        if (req.method.toLowerCase() !== context.data.method) {
-            return error(405, 'The `method` must be `' + context.data.method + '`.');
+        if (req.method !== context.data.method) {
+            return error(405, 'The verb must be ' + context.data.method + '.');
         }
     }
-    else if (req.method !== 'get' && req.method !== 'put') {
-        return error(405, 'The `method` must be `put` or `get`.');
+    else if (req.method !== 'GET' && req.method !== 'PUT') {
+        return error(405, 'The verb must be PUT or GET.');
     }
 
     // Configure AWS proxy
