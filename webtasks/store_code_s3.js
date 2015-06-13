@@ -45,7 +45,7 @@ return function (context, req, res) {
 
     var s3 = new aws.S3({ params: { Bucket: context.data.bucket, Key: context.data.path }});
 
-    if (context.data.method === 'get') {
+    if (context.data.method === 'GET') {
         // Stream data from S3
         s3.getObject().createReadStream().pipe(res);
     }
