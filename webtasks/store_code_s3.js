@@ -62,7 +62,11 @@ return function (context, req, res) {
                     params: {
                         method: 'get',
                         path: context.data.path
-                    }
+                    },
+                    disable_parse_body: true,
+                    disable_merge_body: true,
+                    disable_self_revocation: true,
+                    delegation_depth: 0
                 }, function (err, url) {
                     if (err) {
                         return error(502, err.stack || err.message || err);
