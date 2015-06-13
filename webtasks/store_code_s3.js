@@ -60,7 +60,7 @@ return function (context, req, res) {
                 context.create_token_url({
                     // Fix the method and path parametrs to only allow GET of the S3 data
                     params: {
-                        method: 'get',
+                        method: 'GET',
                         path: context.data.path
                     },
                     disable_parse_body: true,
