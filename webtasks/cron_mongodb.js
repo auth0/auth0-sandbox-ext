@@ -304,6 +304,9 @@ return function (context, req, res) {
                 var cursor = coll.find(query)
                     .sort({created_at: -1});
                     
+                if (context.data.limit) cursor.limit(parseInt(context.data.limit, 10));
+                if (context.data.skip) cursor.skip(parseInt(context.data.skip, 0));
+                    
                 var fetchResults = Bluebird.promisify(cursor.toArray, cursor);
                 
                 // TODO (ggoodman): Pagination logic
