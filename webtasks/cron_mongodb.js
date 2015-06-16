@@ -14,7 +14,7 @@ var valid_actions = {
 };
 
 
-var webtask =  function (context, req, res) {
+return function (context, req, res) {
     var action = validate_method(valid_actions);
     var now = new Date();
     
@@ -395,6 +395,4 @@ var webtask =  function (context, req, res) {
         
         return false;
     }
-};
-
-return webtask;
+}
