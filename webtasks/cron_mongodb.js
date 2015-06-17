@@ -355,7 +355,7 @@ return function (context, req, res) {
                 console.log("Database error:", err);
                 console.trace(err);
                 
-                throw Boom.wrap(500, 'Database unreachable');
+                throw Boom.wrap(err, 'Database unreachable');
             });
     }
     
@@ -367,7 +367,7 @@ return function (context, req, res) {
                 console.log("Database error:", err);
                 console.trace(err);
                 
-                throw Boom.wrap(500, 'Database collection unreachable');
+                throw Boom.wrap(err, 'Database collection unreachable');
             })
     }
 
