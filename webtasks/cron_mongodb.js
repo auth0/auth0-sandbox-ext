@@ -16,9 +16,10 @@ var valid_actions = {
 
 return function (context, req, res) {
     var action = validate_method(valid_actions);
+    var maxJobsPerContainer = parseInt(context.data.max_jobs_per_container, 10) || 100;
     var now = new Date();
     
-    if (!validate_params(['JOB_COLLECTION', 'LOG_COLLECTION', 'cluster_url', 'max_jobs_per_container']))
+    if (!validate_params(['JOB_COLLECTION', 'LOG_COLLECTION', 'cluster_url']))
         return;
     
     if (action === 'put_job') {
@@ -61,7 +62,7 @@ return function (context, req, res) {
                         var sameContainerCount = counts[0];
                         var exists = !!counts[1];
                         
-                        if (!exists || sameContainerCount >= context.data.max_jobs_per_container) {
+                        if (!exists || sameContainerCount >= maxJobsPerContainer) {
                             var err = new Error('Unable to schedule more than '
                                 + context.data.max_jobs_per_container
                                 + ' jobs per container.');
