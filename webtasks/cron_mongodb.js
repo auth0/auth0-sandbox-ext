@@ -1,4 +1,5 @@
 var _ = require('lodash');
+var Boom = require('boom');
 var Bluebird = require('bluebird');
 
 var mongo;
@@ -63,13 +64,9 @@ return function (context, req, res) {
                         var exists = !!counts[1];
                         
                         if (!exists || sameContainerCount >= maxJobsPerContainer) {
-                            var err = new Error('Unable to schedule more than '
-                                + context.data.max_jobs_per_container
+                            throw Boom.badRequest('Unable to schedule more than '
+                                + maxJobsPerContainer
                                 + ' jobs per container.');
-                            
-                            err.statusCode = 400;
-                            
-                            throw err;
                         }
                         
                         return coll.findOneAndUpdateAsync({
@@ -87,9 +84,7 @@ return function (context, req, res) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     } else if (action === 'reserve_jobs') {
         // Reserve a set of jobs for execution
         
@@ -144,9 +139,7 @@ return function (context, req, res) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     } else if (action === 'list_jobs') {
         // List all scheduled webtasks or only those in a container passed via query
         
@@ -168,9 +161,7 @@ return function (context, req, res) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     
     } else if (action === 'get_job') {
         // Get a single scheduled webtask
@@ -189,17 +180,12 @@ return function (context, req, res) {
             })
             .then(stripMongoId)
             .then(function (data) {
-                if (!data) {
-                    res.writeHead(404);
-                    return res.end("Not found");
-                }
+                if (!data) throw Boom.notFound();
                 
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     
     } else if (action === 'destroy_job') {
         // Get a single scheduled webtask
@@ -232,9 +218,7 @@ return function (context, req, res) {
                 res.writeHead(204);
                 res.end();
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     
     } else if (action === 'update_job') {
         // Update a single scheduled webtask based on criteria
@@ -245,8 +229,8 @@ return function (context, req, res) {
         if (!validate_body(['criteria', 'updates']))
             return;
             
-        if (!_.isObject(context.body.criteria)) return respondWithError(400, 'Expecting criteria to be an object');
-        if (!_.isObject(context.body.updates)) return respondWithError(400, 'Expecting updates to be an object');
+        if (!_.isObject(context.body.criteria)) return respondWithError(Boom.badRequest('Expecting criteria to be an object'));
+        if (!_.isObject(context.body.updates)) return respondWithError(Boom.badRequest('Expecting updates to be an object'));
         
         var criteria = context.body.criteria;
         var updates = context.body.updates;
@@ -300,17 +284,12 @@ return function (context, req, res) {
                 // There may be no jobs that match criteria, resulting in 
                 // data being null
                 
-                if (!data) throw {
-                    statusCode: 404,
-                    message: 'No job matched the supplied criteria',
-                };
+                if (!data) throw Boom.notFound('No job matched the supplied criteria');
                 
                 res.writeHead(200);
                 res.end(JSON.stringify(data));
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     } else if (action === 'job_history') {
         // List all scheduled webtask's result history
         
@@ -340,15 +319,12 @@ return function (context, req, res) {
                 res.writeHead(200, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify(data));
             })
-            .catch(function (err) {
-                respondWithError(err.statusCode || 500, err);
-            });
+            .catch(respondWithError);
     
     } else {
         // TODO (ggoodman): Consider: https://github.com/auth0/auth0-sandbox-ext/pull/1#discussion_r32170649
         
-        res.writeHead(404);
-        res.end('Method not found');
+        return respondWithError(Boom.methodNotAllowed('Invalid method'));
     }
     
     // Helper methods
@@ -374,22 +350,34 @@ return function (context, req, res) {
                 mongo = Bluebird.resolve(db);
                 
                 return db;
+            })
+            .catch(function (err) {
+                console.log("Database error:", err);
+                console.trace(err);
+                
+                throw Boom.wrap(500, 'Database unreachable');
             });
     }
     
     function withMongoCollection (collName) {
         return withMongoDb()
             .call('collection', collName) // Get a Collection handle
-            .then(Bluebird.promisifyAll); // Promisify all methods of Connection
+            .then(Bluebird.promisifyAll) // Promisify all methods of Connection
+            .catch(function (err) {
+                console.log("Database error:", err);
+                console.trace(err);
+                
+                throw Boom.wrap(500, 'Database collection unreachable');
+            })
     }
 
     function validate_method (valid_actions) {
         var action = context.data.action;
         var expected_method = valid_actions[action];
         
-        if (!action) return respondWithError(400, 'Missing action.');
-        if (!expected_method) return respondWithError(400, 'Invalid action.');
-        if (expected_method !== req.method) return respondWithError(405, 'Invalid method.');
+        if (!action) return respondWithError(Boom.badRequest('Missing action.'));
+        if (!expected_method) return respondWithError(Boom.badRequest('Invalid action.'));
+        if (expected_method !== req.method) return respondWithError(Boom.methodNotAllowed('Invalid method.'));
         
         return action;
     }
@@ -397,7 +385,7 @@ return function (context, req, res) {
     function validate_params(required_params) {
         for (var i in required_params) {
             if (typeof context.data[required_params[i]] !== 'string') {
-                return respondWithError(400, 'Missing query parameter ' + required_params[i] + '.');
+                return respondWithError(Boom.badRequest('Missing query parameter ' + required_params[i] + '.'));
             }
         }
         return true;
@@ -406,18 +394,17 @@ return function (context, req, res) {
     function validate_body(required_fields) {
         for (var i in required_fields) {
             if (!context.body[required_fields[i]]) {
-                return respondWithError(400, 'Missing payload parameter ' + required_fields[i] + '.');
+                return respondWithError(Boom.badRequest('Missing payload parameter ' + required_fields[i] + '.'));
             }
         }
         return true;
     }
 
-    function respondWithError(code, err) {
+    function respondWithError(err) {
+        if (!err.isBoom) err = Boom.wrap(err);
         
-        if (!_.isString(err)) err = JSON.stringify(err);
-        
-        res.writeHead(code);
-        res.end(err);
+        res.writeHead(err.output.statusCode, err.output.headers);
+        res.end(err.output.payload);
         
         return false;
     }
