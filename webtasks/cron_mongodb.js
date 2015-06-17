@@ -14,7 +14,7 @@ var valid_actions = {
     update_job: 'PUT',
 };
 
-function webtask (context, req, res) {
+return function (context, req, res) {
     var action = validate_method(valid_actions);
     var maxJobsPerContainer = parseInt(context.data.max_jobs_per_container, 10) || 100;
     var now = new Date();
