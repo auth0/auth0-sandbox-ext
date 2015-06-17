@@ -51,10 +51,10 @@ return function (context, req, res) {
         return withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
                 var countExistingCursor = coll.find({container: context.data.container});
-                var countExisting = Bluebird.promisify(countExistingCursor.count, cursor)();
+                var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
                 
                 var alreadyExistsCursor = coll.find({container: context.data.container});
-                var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, cursor)();
+                var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, alreadyExistsCursor)();
                 
                 return Bluebird.all([countExisting, alreadyExists])
                     .then(function (counts) {
