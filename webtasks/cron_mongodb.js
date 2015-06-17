@@ -18,7 +18,7 @@ return function (context, req, res) {
     var action = validate_method(valid_actions);
     var now = new Date();
     
-    if (!validate_params(['JOB_COLLECTION', 'LOG_COLLECTION', 'cluster_url']))
+    if (!validate_params(['JOB_COLLECTION', 'LOG_COLLECTION', 'cluster_url', 'max_jobs_per_container']))
         return;
     
     if (action === 'put_job') {
@@ -50,13 +50,35 @@ return function (context, req, res) {
         
         return withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
-                return coll.findOneAndUpdateAsync({
-                    container: context.data.container,
-                    name: context.data.name,
-                }, update, {
-                    returnOriginal: false,
-                    upsert: true,
-                });
+                var countExistingCursor = coll.find({container: context.data.container});
+                var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
+                
+                var alreadyExistsCursor = coll.find({container: context.data.container});
+                var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, alreadyExistsCursor)();
+                
+                return Bluebird.all([countExisting, alreadyExists])
+                    .then(function (counts) {
+                        var sameContainerCount = counts[0];
+                        var exists = !!counts[1];
+                        
+                        if (!exists || sameContainerCount >= context.data.max_jobs_per_container) {
+                            var err = new Error('Unable to schedule more than '
+                                + context.data.max_jobs_per_container
+                                + ' jobs per container.');
+                            
+                            err.statusCode = 400;
+                            
+                            throw err;
+                        }
+                        
+                        return coll.findOneAndUpdateAsync({
+                            container: context.data.container,
+                            name: context.data.name,
+                        }, update, {
+                            returnOriginal: false,
+                            upsert: true,
+                        });
+                    });
             })
             .get('value')
             .then(stripMongoId)
