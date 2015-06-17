@@ -14,8 +14,7 @@ var valid_actions = {
     update_job: 'PUT',
 };
 
-
-return function (context, req, res) {
+function webtask (context, req, res) {
     var action = validate_method(valid_actions);
     var maxJobsPerContainer = parseInt(context.data.max_jobs_per_container, 10) || 100;
     var now = new Date();
@@ -404,7 +403,7 @@ return function (context, req, res) {
         if (!err.isBoom) err = Boom.wrap(err);
         
         res.writeHead(err.output.statusCode, err.output.headers);
-        res.end(err.output.payload);
+        res.end(JSON.stringify(err.output.payload));
         
         return false;
     }
