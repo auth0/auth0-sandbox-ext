@@ -57,12 +57,16 @@ return function (context, req, res) {
                 var alreadyExistsCursor = coll.find({container: context.data.container});
                 var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, alreadyExistsCursor)();
                 
+                console.log("PUT", 'Obtained collection');
+                
                 return Bluebird.all([countExisting, alreadyExists])
                     .then(function (counts) {
+                        console.log("PUT", 'Obtained counts', arguments);
                         var sameContainerCount = counts[0];
                         var exists = !!counts[1];
                         
                         if (!exists || sameContainerCount >= maxJobsPerContainer) {
+                            console.log("PUT", 'Failed maxJobsPerContainer test');
                             throw Boom.badRequest('Unable to schedule more than '
                                 + maxJobsPerContainer
                                 + ' jobs per container.');
@@ -399,8 +403,12 @@ return function (context, req, res) {
         return true;
     }
 
-    function respondWithError(err) {
+    function respondWithError (err) {
+        console.log("respondWithError", err);
+        
         if (!err.isBoom) err = Boom.wrap(err);
+        
+        console.log("respondWithError", err.output);
         
         res.writeHead(err.output.statusCode, err.output.headers);
         res.end(JSON.stringify(err.output.payload));
