@@ -72,7 +72,7 @@ return function (context, req, res) {
                         if (!exists && sameContainerCount >= maxJobsPerContainer) {
                             throw Boom.badRequest('Unable to schedule more than '
                                 + maxJobsPerContainer
-                                + ' jobs per container.' + ' In container already: ' + sameContainerCount + ', exists: ' + counts[0]);
+                                + ' jobs per container.');
                         }
                         
                         return coll.findOneAndUpdateAsync({
