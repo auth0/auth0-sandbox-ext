@@ -51,10 +51,17 @@ return function (context, req, res) {
         
         return withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
-                var countExistingCursor = coll.find({container: context.data.container});
+                var countExistingCursor = coll.find({
+                    cluster_url: context.data.cluster_url,
+                    container: context.data.container,
+                });
                 var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
                 
-                var alreadyExistsCursor = coll.find({container: context.data.container});
+                var alreadyExistsCursor = coll.find({
+                    cluster_url: context.data.cluster_url,
+                    container: context.data.container,
+                    name: context.data.name,
+                });
                 var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, alreadyExistsCursor)();
                 
                 return Bluebird.all([countExisting, alreadyExists])
@@ -69,6 +76,7 @@ return function (context, req, res) {
                         }
                         
                         return coll.findOneAndUpdateAsync({
+                            cluster_url: context.data.cluster_url,
                             container: context.data.container,
                             name: context.data.name,
                         }, update, {
