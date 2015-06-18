@@ -19,7 +19,7 @@ return function (context, req, res) {
     var maxJobsPerContainer = parseInt(context.data.max_jobs_per_container, 10) || 100;
     var now = new Date();
     
-    if (!validate_params(['JOB_COLLECTION', 'LOG_COLLECTION', 'cluster_url']))
+    if (!validate_params(['JOB_COLLECTION', 'LOG_COLLECTION', 'MONGO_URL', 'cluster_url']))
         return;
     
     if (action === 'put_job') {
@@ -72,7 +72,7 @@ return function (context, req, res) {
                         if (!exists && sameContainerCount >= maxJobsPerContainer) {
                             throw Boom.badRequest('Unable to schedule more than '
                                 + maxJobsPerContainer
-                                + ' jobs per container.');
+                                + ' jobs per container.' + ' In container already: ' + sameContainerCount + ', exists: ' + counts[0]);
                         }
                         
                         return coll.findOneAndUpdateAsync({
