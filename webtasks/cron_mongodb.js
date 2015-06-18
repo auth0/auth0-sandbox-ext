@@ -69,7 +69,7 @@ return function (context, req, res) {
                         var sameContainerCount = counts[0];
                         var exists = !!counts[1];
                         
-                        if (!exists || sameContainerCount >= maxJobsPerContainer) {
+                        if (!exists && sameContainerCount >= maxJobsPerContainer) {
                             throw Boom.badRequest('Unable to schedule more than '
                                 + maxJobsPerContainer
                                 + ' jobs per container.');
