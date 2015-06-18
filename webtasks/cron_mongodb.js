@@ -98,6 +98,7 @@ return function (context, req, res) {
                     // TODO (ggoodman): Refactor this to use reduce to avoid calling N queries if reservation fails before N
                     .map(function (n) {
                         var filter = {
+                            cluster_url: context.data.cluster_url,
                             next_available_at: {
                                 $lte: now
                             },
@@ -144,7 +145,9 @@ return function (context, req, res) {
         
         return withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
-                var query = {};
+                var query = {
+                    cluster_url: context.data.cluster_url,
+                };
                 
                 // Both admin and user will hit this endpoint. When admin, container can be unset
                 if (context.data.container) query.container = context.data.container;
@@ -171,6 +174,7 @@ return function (context, req, res) {
         return withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
                 var query = {
+                    cluster_url: context.data.cluster_url,
                     container: context.data.container,
                     name: context.data.name,
                 };
@@ -192,23 +196,19 @@ return function (context, req, res) {
         if (!validate_params(['container', 'name']))
             return;
             
+        var filter = {
+            cluster_url: context.data.cluster_url,
+            container: context.data.container,
+            name: context.data.name,
+        };
+
         var deleteJob = withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
-                var filter = {
-                    container: context.data.container,
-                    name: context.data.name,
-                };
-                
                 return coll.deleteOne(filter, {w: 1});
             });
             
         var deleteLogs = withMongoCollection(context.data.LOG_COLLECTION)
             .then(function (coll) {
-                var filter = {
-                    container: context.data.container,
-                    name: context.data.name,
-                };
-                
                 return coll.deleteMany(filter, {w: 1});
             });
         
@@ -250,6 +250,7 @@ return function (context, req, res) {
             withMongoCollection(context.data.LOG_COLLECTION)
                 .then(function (coll) {
                     var logEntry = _.extend(result, {
+                        cluster_url: context.data.cluster_url,
                         container: context.data.container,
                         name: context.data.name,
                         created_at: new Date(),
@@ -262,6 +263,7 @@ return function (context, req, res) {
         return withMongoCollection(context.data.JOB_COLLECTION)
             .then(function (coll) {
                 var filter = _.defaults({
+                    cluster_url: context.data.cluster_url,
                     container: context.data.container,
                     name: context.data.name,
                 }, context.body.critera);
@@ -298,6 +300,7 @@ return function (context, req, res) {
         return withMongoCollection(context.data.LOG_COLLECTION)
             .then(function (coll) {
                 var query = {
+                    cluster_url: context.data.cluster_url,
                     container: context.data.container,
                     name: context.data.name,
                 };
