@@ -64,7 +64,7 @@ return function (ctx, cb) {
         }
         else {
             payload = {
-                phone_number: ctx.data.email,
+                email: ctx.data.email,
                 connection: 'email'
             }
         }
