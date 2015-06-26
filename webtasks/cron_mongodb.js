@@ -415,7 +415,7 @@ return function (context, req, res) {
         
         err.output.payload.stack = err.stack;
         
-        res.writeHead(err.output.statusCode, err.output.headers);
+        res.writeHead(err.output.statusCode, {'content-type': 'application/json'});
         res.end(JSON.stringify(err.output.payload));
         
         return false;
