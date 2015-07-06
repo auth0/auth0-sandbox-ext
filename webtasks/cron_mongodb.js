@@ -411,9 +411,11 @@ return function (context, req, res) {
     }
 
     function respondWithError (err) {
-        if (!err.isBoom) err = Boom.wrap(err);
+        if (!err.isBoom) err = Boom.wrap(err, 502);
         
-        res.writeHead(err.output.statusCode, err.output.headers);
+        err.output.payload.stack = err.stack;
+        
+        res.writeHead(err.output.statusCode, {'content-type': 'application/json'});
         res.end(JSON.stringify(err.output.payload));
         
         return false;
