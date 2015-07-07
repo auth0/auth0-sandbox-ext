@@ -6,7 +6,8 @@ return function (context, req, res) {
     console.log('Request: ', { 
         bucket: context.data.bucket, 
         path: context.data.path, 
-        method: req.method 
+        method: req.method,
+        no_location: !!context.data.no_location 
     });
 
     // Validate and normalize parameters    
@@ -57,6 +58,11 @@ return function (context, req, res) {
             } 
             else {
                 console.log('Upload to S3 completed: ', data.Location);
+                if (!!context.data.no_location) {
+                    // do not generate sandboxed GET url
+                    res.writeHead(200);
+                    return res.end();
+                }
                 context.create_token_url({
                     // Fix the method and path parametrs to only allow GET of the S3 data
                     params: {
