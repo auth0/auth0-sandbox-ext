@@ -54,9 +54,9 @@ return function (context, req, res) {
                 path: context.data.path, 
                 method: req.method,
                 no_location: !!context.data.no_location,
-                error: e.message || e.toString()
+                error: error.message || error.toString()
             });
-            if (err) return error(502, err.stack || err.message || err);
+            if (error) return error(502, error.stack || error.message || error);
             res.writeHead(200, {
                 'Content-Type': 'application/octet-stream',
                 'Cache-Control': 'no-cache'
