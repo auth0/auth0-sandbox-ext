@@ -48,14 +48,7 @@ return function (context, req, res) {
 
     if (context.data.method === 'GET') {
         // Stream data from S3
-        console.log('READING!!!!!!');
-        var stream = s3.getObject().createReadStream();
-        s3.on('error', on_error);
-        stream.on('error', on_error);
-        res.on('error', on_error);
-        stream.pipe(res);
-
-        function on_error(e) {
+        s3.getObject(function (error, data) {
             console.log('S3 download error:', { 
                 bucket: context.data.bucket, 
                 path: context.data.path, 
@@ -63,7 +56,13 @@ return function (context, req, res) {
                 no_location: !!context.data.no_location,
                 error: e.message || e.toString()
             });
-        }
+            if (err) return error(502, err.stack || err.message || err);
+            res.writeHead(200, {
+                'Content-Type': 'application/octet-stream',
+                'Cache-Control': 'no-cache'
+            });
+            return res.end(data.Body);
+        });
     }
     else {
         // Stream data to S3
