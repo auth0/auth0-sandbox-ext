@@ -48,15 +48,15 @@ return function (context, req, res) {
 
     if (context.data.method === 'GET') {
         // Stream data from S3
-        s3.getObject(function (error, data) {
+        s3.getObject(function (err, data) {
             console.log('S3 download error:', { 
                 bucket: context.data.bucket, 
                 path: context.data.path, 
                 method: req.method,
                 no_location: !!context.data.no_location,
-                error: error.message || error.toString()
+                error: err.message || err.toString()
             });
-            if (error) return error(502, error.stack || error.message || error);
+            if (err) return error(502, err.stack || err.message || err);
             res.writeHead(200, {
                 'Content-Type': 'application/octet-stream',
                 'Cache-Control': 'no-cache'
