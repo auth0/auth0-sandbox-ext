@@ -49,6 +49,15 @@ return function (context, req, res) {
     if (context.data.method === 'GET') {
         // Stream data from S3
         s3.getObject().createReadStream().pipe(res);
+        res.on('error', function (e) {
+            console.log('S3 download error:', { 
+                bucket: context.data.bucket, 
+                path: context.data.path, 
+                method: req.method,
+                no_location: !!context.data.no_location,
+                error: e.message || e.toString()
+            });
+        });
     }
     else {
         // Stream data to S3
