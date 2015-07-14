@@ -54,7 +54,8 @@ return function (context, req, res) {
                 path: context.data.path, 
                 method: req.method,
                 no_location: !!context.data.no_location,
-                error: err.message || err.toString()
+                error: err.message || err.toString(),
+                details: JSON.stringify(err)
             });
             if (err) return error(502, err.stack || err.message || err);
             res.writeHead(200, {
