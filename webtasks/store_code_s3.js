@@ -48,7 +48,9 @@ return function (context, req, res) {
 
     if (context.data.method === 'GET') {
         // Stream data from S3
+        console.log('READING!!!!!!');
         var stream = s3.getObject().createReadStream();
+        s3.on('error', on_error);
         stream.on('error', on_error);
         res.on('error', on_error);
         stream.pipe(res);
