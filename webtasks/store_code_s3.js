@@ -57,7 +57,7 @@ return function (context, req, res) {
                 error: err.message || err.toString(),
                 details: JSON.stringify(err)
             });
-            if (err) return error(502, err.stack || err.message || err);
+            if (err) return error(err.statusCode || 502, err.message || err);
             res.writeHead(200, {
                 'Content-Type': 'application/octet-stream',
                 'Cache-Control': 'no-cache'
