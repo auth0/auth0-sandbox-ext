@@ -49,15 +49,17 @@ return function (context, req, res) {
     if (context.data.method === 'GET') {
         // Stream data from S3
         s3.getObject(function (err, data) {
-            console.log('S3 download error:', { 
-                bucket: context.data.bucket, 
-                path: context.data.path, 
-                method: req.method,
-                no_location: !!context.data.no_location,
-                error: err.message || err.toString(),
-                details: JSON.stringify(err)
-            });
-            if (err) return error(err.statusCode || 502, err.message || err);
+            if (err) {
+                console.log('S3 download error:', { 
+                    bucket: context.data.bucket, 
+                    path: context.data.path, 
+                    method: req.method,
+                    no_location: !!context.data.no_location,
+                    error: err.message || err.toString(),
+                    details: JSON.stringify(err)
+                });
+                return error(err.statusCode || 502, err.message || err);
+            }
             res.writeHead(200, {
                 'Content-Type': 'application/octet-stream',
                 'Cache-Control': 'no-cache'
