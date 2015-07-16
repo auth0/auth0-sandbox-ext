@@ -1,5 +1,6 @@
 var Boom = require('boom');
 var Bluebird = require('bluebird');
+var Cron = require('cron-parser');
 var Express = require('express');
 var Jwt = require('jsonwebtoken');
 var Webtask = require('webtask-tools');
@@ -45,8 +46,6 @@ app.use(function (req, res, next) {
         .then(function (db) {
             // Store the settled promise resolving to the db object
             mongo = req.mongo = db;
-            
-            console.log('connected to mongodb');
         })
         .catch(function (err) {
             throw Boom.wrap(err, 503, 'Database unreachable.');
@@ -119,6 +118,9 @@ router.post('/reserve',
         // (this is the case when there are fewer than N jobs
         // available for running now)
         .filter(Boolean)
+        .tap(function (jobs) {
+            console.log('successfully reserved ' + jobs.length + ' job(s).');
+        })
         .map(stripMongoId)
         .then(res.json.bind(res), next);
 });
@@ -187,6 +189,31 @@ router.put('/:container/:name',
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
         var now = new Date();
         var tokenData = Jwt.decode(req.body.token, {complete: true});
+        var intervalOptions = {};
+        var nextAvailableAt;
+        
+        if (tokenData.payload.exp) {
+            intervalOptions.endDate = new Date(tokenData.payload.exp * 1000);
+        }
+        
+        if (tokenData.payload.nbf) {
+            intervalOptions.currentDate = new Date(tokenData.payload.nbf * 1000);
+        }
+        
+        try {
+            var interval = Cron.parseExpression(req.body.schedule, intervalOptions);
+            nextAvailableAt = interval.next();
+        } catch (e) {
+            return next(Boom.badRequest('Invalid cron expression `'
+                + req.body.schedule + '`.', req.body));
+        }
+        
+        
+        if (!nextAvailableAt) {
+            return next(Boom.badRequest('The provided token\'s `nbf` and `exp` '
+                + 'claims are such that the job would never run with the '
+                + 'schedule `' + req.body.schedule + '`.'));
+        }
         
         var update = {
             $set: {
@@ -196,9 +223,9 @@ router.put('/:container/:name',
                 cluster_url: data.cluster_url,
                 container: req.params.container,
                 name: req.params.name,
-                expires_at: null,
-                last_scheduled_at: now,
-                next_available_at: now,
+                expires_at: intervalOptions.endDate || null,
+                last_scheduled_at: null,
+                next_available_at: nextAvailableAt,
                 token_data: tokenData.payload,
             },
             $setOnInsert: {
@@ -207,14 +234,6 @@ router.put('/:container/:name',
                 error_count: 0,
             }
         };
-        
-        if (tokenData.payload.exp) {
-            update.$set.expires_at = new Date(tokenData.payload.exp);
-        }
-        
-        if (tokenData.payload.nbf) {
-            update.$set.next_available_at = new Date(tokenData.payload.nbf);
-        }
         
         var countExistingCursor = jobs.find({
             cluster_url: data.cluster_url,
@@ -310,10 +329,13 @@ router.delete('/:container/:name',
                 console.log(err);
                 throw Boom.wrap(err, 503, 'Error querying database.');
             })
+            .get('value')
             .then(function (job) {
                 if (!job) {
                     throw Boom.notFound('No such job `' + req.params.name + '`.');
                 }
+                
+                return job;
             })
             .then(respondWith204, next);
         
