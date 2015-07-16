@@ -16,17 +16,17 @@ Bluebird.longStackTraces();
 app.use(function (req, res, next) {
     var data = req.webtaskContext.data;
     var required = ['JOB_COLLECTION', 'MONGO_URL', 'cluster_url'];
-    
+
     for (var i in required) {
         var key = required[i];
-        
+
         if (!data[key]) {
             var err = Boom.badGateway('Cron webtask needs to be configured '
                 + 'with the parameter: `' + key + '`.', data);
             return next(err);
         }
     }
-    
+
     next();
 });
 
@@ -37,11 +37,11 @@ app.use(function (req, res, next) {
         req.mongo = mongo;
         return next();
     }
-    
+
     var MongoClient = require('mongodb').MongoClient;
     var connect = Bluebird.promisify(MongoClient.connect, MongoClient);
     var data = req.webtaskContext.data;
-    
+
     return connect(data.MONGO_URL)
         .then(function (db) {
             // Store the settled promise resolving to the db object
@@ -61,9 +61,9 @@ app.use(router);
 app.use(function(err, req, res, next) {
     console.log(err.message);
     console.log(err.stack);
-    
+
     if (!err.isBoom) err = Boom.wrap(err);
-    
+
     res
         .set(err.output.headers)
         .status(err.output.statusCode)
@@ -80,9 +80,9 @@ router.post('/reserve',
         var count = Math.max(0, Math.min(100, parseInt(req.query.count, 10)));
         var now = new Date();
         var nextAvailableAt = new Date(now.valueOf() + (parseInt(data.ttl, 10) * 1000));
-        
+
         console.log('attempting to reserve ' + count + ' jobs.');
-        
+
         Bluebird.map(_.range(count), function (n) {
             var filter = {
                 cluster_url: data.cluster_url,
@@ -131,10 +131,10 @@ router.get('/:container?', function (req, res, next) {
     var query = {
         cluster_url: data.cluster_url,
     };
-    
+
     // Both admin and user will hit this endpoint. When admin, container can be unset
     if (req.params.container) query.container = req.params.container;
-    
+
     var limit = req.query.limit
         ? Math.max(0, Math.min(20, parseInt(req.query.limit, 10)))
         : 10;
@@ -144,7 +144,7 @@ router.get('/:container?', function (req, res, next) {
     var cursor = jobs.find(query)
         .skip(skip)
         .limit(limit);
-    
+
     Bluebird.promisify(cursor.toArray, cursor)()
         .catch(function (err) {
             throw Boom.wrap(err, 503, 'Error querying database.');
@@ -165,8 +165,8 @@ router.post('/:container/:name',
            container: req.params.container,
            name: req.params.name,
         }));
-        var updates = canonicalizeDates(req.body.updates);
-        
+        var updates = { $set: canonicalizeDates(req.body.updates) };
+
         Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, updates, {
             returnOriginal: false,
             upsert: true,
@@ -175,6 +175,13 @@ router.post('/:container/:name',
                 throw Boom.wrap(err, 503, 'Error updating database.');
             })
             .get('value')
+            .then(function (job) {
+                if (!job) {
+                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                }
+
+                return job;
+            })
             .then(stripMongoId)
             .then(res.json.bind(res), next);
 });
@@ -191,15 +198,15 @@ router.put('/:container/:name',
         var tokenData = Jwt.decode(req.body.token, {complete: true});
         var intervalOptions = {};
         var nextAvailableAt;
-        
+
         if (tokenData.payload.exp) {
             intervalOptions.endDate = new Date(tokenData.payload.exp * 1000);
         }
-        
+
         if (tokenData.payload.nbf) {
             intervalOptions.currentDate = new Date(tokenData.payload.nbf * 1000);
         }
-        
+
         try {
             var interval = Cron.parseExpression(req.body.schedule, intervalOptions);
             nextAvailableAt = interval.next();
@@ -207,14 +214,14 @@ router.put('/:container/:name',
             return next(Boom.badRequest('Invalid cron expression `'
                 + req.body.schedule + '`.', req.body));
         }
-        
-        
+
+
         if (!nextAvailableAt) {
             return next(Boom.badRequest('The provided token\'s `nbf` and `exp` '
                 + 'claims are such that the job would never run with the '
                 + 'schedule `' + req.body.schedule + '`.'));
         }
-        
+
         var update = {
             $set: {
                 state: 'active',
@@ -234,20 +241,20 @@ router.put('/:container/:name',
                 error_count: 0,
             }
         };
-        
+
         var countExistingCursor = jobs.find({
             cluster_url: data.cluster_url,
             container: req.params.container,
         });
         var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
-        
+
         var alreadyExistsCursor = jobs.find({
             cluster_url: data.cluster_url,
             container: req.params.container,
             name: req.params.name,
         });
         var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, alreadyExistsCursor)();
-                
+
         Bluebird.all([countExisting, alreadyExists])
             .catch(function (err) {
                 throw Boom.wrap(err, 503, 'Error querying database.');
@@ -255,13 +262,13 @@ router.put('/:container/:name',
             .then(function (counts) {
                 var sameContainerCount = counts[0];
                 var exists = !!counts[1];
-                
+
                 if (!exists && sameContainerCount >= maxJobsPerContainer) {
                     throw Boom.badRequest('Unable to schedule more than '
                         + maxJobsPerContainer
                         + ' jobs per container.');
                 }
-                
+
                 return Bluebird.promisify(jobs.findOneAndUpdate, jobs)({
                     cluster_url: data.cluster_url,
                     container: req.params.container,
@@ -292,7 +299,7 @@ router.get('/:container/:name',
         var projection = {
             results: { $slice: 1 },
         };
-        
+
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
                 throw Boom.wrap(err, 503, 'Error querying database.');
@@ -301,7 +308,7 @@ router.get('/:container/:name',
                 if (!job) {
                     throw Boom.notFound('No such job `' + req.params.name + '`.');
                 }
-                
+
                 return job;
             })
             .then(stripMongoId)
@@ -323,7 +330,7 @@ router.delete('/:container/:name',
             container: 1,
             name: 1,
         };
-        
+
         Bluebird.promisify(jobs.findAndRemove, jobs)(query, sort, {})
             .catch(function (err) {
                 console.log(err);
@@ -334,14 +341,10 @@ router.delete('/:container/:name',
                 if (!job) {
                     throw Boom.notFound('No such job `' + req.params.name + '`.');
                 }
-                
+
                 return job;
             })
-            .then(respondWith204, next);
-        
-        function respondWith204 () {
-            res.status(204).send();
-        }
+            .then(respondWith204(res), next);
 });
 
 router.get('/:container/:name/history',
@@ -354,7 +357,7 @@ router.get('/:container/:name/history',
             container: req.params.container,
             name: req.params.name,
         };
-        
+
         var limit = req.query.limit
             ? Math.max(0, Math.min(20, parseInt(req.query.limit, 10)))
             : 10;
@@ -364,7 +367,7 @@ router.get('/:container/:name/history',
         var projection = {
             results: { $slice: [skip, limit] },
         };
-        
+
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
                 throw Boom.wrap(err, 503, 'Error querying database.');
@@ -373,12 +376,57 @@ router.get('/:container/:name/history',
                 if (!job) {
                     throw Boom.notFound('No such job `' + req.params.name + '`.');
                 }
-                
+
                 return job;
             })
             .get('results')
             .map(stripMongoId)
             .then(res.json.bind(res), next);
+});
+
+router.post('/:container/:name/history',
+    ensure('params', ['container', 'name']),
+    ensure('body', ['created_at', 'type', 'headers', 'statusCode', 'body']),
+    function (req, res, next) {
+        var data = req.webtaskContext.data;
+        var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var result = canonicalizeDates(req.body);
+        var query = {
+            cluster_url: data.cluster_url,
+            container: req.params.container,
+            name: req.params.name,
+        };
+        var update = {
+            $push: {
+                results: {
+                    $each: [result],
+                    $position: 0, // Push to head of array
+                    $slice: 100, // Maximum 100 history entries
+                }
+            },
+            $inc: {
+                run_count: +(result.type === 'success'),
+                error_count: +(result.type === 'error'),
+            }
+        }
+
+        Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, update, {
+            returnOriginal: false,
+            upsert: true,
+        })
+            .catch(function (err) {
+                throw Boom.wrap(err, 503, 'Error updating database.');
+            })
+            .get('value')
+            .then(function (job) {
+                if (!job) {
+                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                }
+
+                return job;
+            })
+            .then(stripMongoId)
+            .then(respondWith204(res), next);
 });
 
 module.exports = Webtask.fromConnect(app);
@@ -389,14 +437,14 @@ module.exports = Webtask.fromConnect(app);
 function ensure (source, fields) {
     return function (req, res, next) {
         var data = req[source];
-        
+
         for (var i in fields) {
             if (!data[fields[i]]) {
                 return next(Boom.badRequest('Missing ' + source + 'parameter '
                     + '`' + fields[i] + '`.'));
             }
         }
-        
+
         next();
     };
 }
@@ -415,6 +463,13 @@ function stripMongoId (doc) {
         if (doc._id) delete doc._id;
         if (doc.results) doc.results = _.map(doc.results, stripMongoId);
     }
-    
+
     return doc;
+}
+
+
+function respondWith204 (res) {
+    return function () {
+        res.status(204).send();
+    };
 }
