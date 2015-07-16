@@ -14,7 +14,7 @@ Bluebird.longStackTraces();
 // Check for required configuration parameters
 app.use(function (req, res, next) {
     var data = req.webtaskContext.data;
-    var required = ['JOB_COLLECTION', 'LOG_COLLECTION', 'MONGO_URL', 'cluster_url'];
+    var required = ['JOB_COLLECTION', 'MONGO_URL', 'cluster_url'];
     
     for (var i in required) {
         var key = required[i];
