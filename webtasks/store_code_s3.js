@@ -6,7 +6,8 @@ return function (context, req, res) {
     console.log('Request: ', { 
         bucket: context.data.bucket, 
         path: context.data.path, 
-        method: req.method 
+        method: req.method,
+        no_location: !!context.data.no_location 
     });
 
     // Validate and normalize parameters    
@@ -47,7 +48,24 @@ return function (context, req, res) {
 
     if (context.data.method === 'GET') {
         // Stream data from S3
-        s3.getObject().createReadStream().pipe(res);
+        s3.getObject(function (err, data) {
+            if (err) {
+                console.log('S3 download error:', { 
+                    bucket: context.data.bucket, 
+                    path: context.data.path, 
+                    method: req.method,
+                    no_location: !!context.data.no_location,
+                    error: err.message || err.toString(),
+                    details: JSON.stringify(err)
+                });
+                return error(err.statusCode || 502, err.message || err);
+            }
+            res.writeHead(200, {
+                'Content-Type': 'application/octet-stream',
+                'Cache-Control': 'no-cache'
+            });
+            return res.end(data.Body);
+        });
     }
     else {
         // Stream data to S3
@@ -57,6 +75,11 @@ return function (context, req, res) {
             } 
             else {
                 console.log('Upload to S3 completed: ', data.Location);
+                if (!!context.data.no_location) {
+                    // do not generate sandboxed GET url
+                    res.writeHead(200);
+                    return res.end();
+                }
                 context.create_token_url({
                     // Fix the method and path parametrs to only allow GET of the S3 data
                     params: {
