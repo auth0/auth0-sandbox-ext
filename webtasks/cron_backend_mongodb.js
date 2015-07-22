@@ -96,7 +96,13 @@ router.post('/reserve',
                     next_available_at: nextAvailableAt
                 }
             };
-            return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(filter, update, {
+            var options = {
+                projection: {
+                    results: { $slice: 10 }, // Limit to the 10 last results
+                },
+            };
+            
+            return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(filter, update, options, {
                 returnOriginal: false, // Return modified
             })
                 .get('value'); // Only pull out the value
