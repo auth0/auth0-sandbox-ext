@@ -34,10 +34,12 @@ const VIEW = hbs.compile(`
 const FUNC_TO_RUN = function() {
     var lock = new Auth0Lock(CLIENT_ID || 'ODGT86Z8Sx0e92shNVn9N5H8JNGAh8R9', AUTH0_DOMAIN || 'webtaskme.auth0.com');
     var lock_opts = {
-        authParams: { 
-            scope: 'openid email' 
+        authParams: {
+            scope: 'openid email'
         }
-    }
+    };
+
+    console.log(TASK_URL);
 
     lock.show(lock_opts, function (err, profile, id_token) {
         if(err) return console.log(err);
@@ -45,8 +47,7 @@ const FUNC_TO_RUN = function() {
         var opts = {
             headers: {
                 'Authorization': 'Bearer ' + id_token
-            },
-            json: { foo: 'bar' }
+            }
         };
 
         request('GET', TASK_URL, opts)
@@ -59,6 +60,17 @@ const FUNC_TO_RUN = function() {
     });
 }.toString();
 
+function toQs(obj) {
+    var str = '';
+
+    Object.keys(obj)
+        .forEach(function (key, index) {
+            str += (index === 0 ? '?' : '&') + key + '=' + obj[key];
+        });
+
+    return str;
+}
+
 module.exports = (ctx, req, res) => {
     if(!ctx.data.container || !ctx.data.taskname) {
        res.statusCode = 400;
@@ -70,7 +82,7 @@ module.exports = (ctx, req, res) => {
                    ctx.data.container +
                    '/'                +
                    ctx.data.taskname  +
-                   (ctx.data.noCache ? '?webtask_no_cache=1' : '');
+                   toQs(ctx.data.query);
 
     res.end(
         VIEW({
