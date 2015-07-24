@@ -39,8 +39,6 @@ const FUNC_TO_RUN = function() {
         }
     };
 
-    console.log(TASK_URL);
-
     lock.show(lock_opts, function (err, profile, id_token) {
         if(err) return console.log(err);
 
@@ -52,7 +50,15 @@ const FUNC_TO_RUN = function() {
 
         request('GET', TASK_URL, opts)
             .then(function (res) {
-                document.body.innerHTML = res.body;
+                switch(res.headers['content-type']) {
+                    case 'application/json':
+                        var parsed = JSON.parse(res.body);
+
+                        document.body.innerHTML      = '<pre>' + JSON.stringify(parsed, null, 1) + '</pre>';
+                        break;
+                    default:
+                        document.body.innerHTML = res.body;
+                }
             })
             .catch(function (err) {
                 console.log(err);
