@@ -32,7 +32,7 @@ const VIEW = hbs.compile(`
 `);
 
 const FUNC_TO_RUN = function() {
-    var lock = new Auth0Lock(CLIENT_ID || 'R5medkAvXYx7CC3DqUVIkWkmbs5NYv7z', AUTH0_DOMAIN || 'milomord.eu.auth0.com');
+    var lock = new Auth0Lock(CLIENT_ID || 'ODGT86Z8Sx0e92shNVn9N5H8JNGAh8R9', AUTH0_DOMAIN || 'webtaskme.auth0.com');
     var lock_opts = {
         authParams: { 
             scope: 'openid email' 
@@ -45,7 +45,8 @@ const FUNC_TO_RUN = function() {
         var opts = {
             headers: {
                 'Authorization': 'Bearer ' + id_token
-            }
+            },
+            json: { foo: 'bar' }
         };
 
         request('GET', TASK_URL, opts)
