@@ -88,13 +88,13 @@ module.exports = (ctx, req, res) => {
                    ctx.data.container +
                    '/'                +
                    ctx.data.taskname  +
-                   toQs(ctx.data.query);
+                   ctx.data.query ? toQs(ctx.data.query) : '';
 
     res.end(
         VIEW({
            FUNC_TO_RUN,
-           CLIENT_ID:    ctx.data.clientId,
-           AUTH0_DOMAIN: ctx.data.auth0Domain,
+           CLIENT_ID:    ctx.data.account.client_id,
+           AUTH0_DOMAIN: ctx.data.account.domain,
            TASK_URL
         })
     );
