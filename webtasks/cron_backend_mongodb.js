@@ -10,8 +10,6 @@ var app = Express();
 var router = Express.Router();
 var mongo;
 
-Bluebird.longStackTraces();
-
 // Check for required configuration parameters
 app.use(function (req, res, next) {
     var data = req.webtaskContext.data;
