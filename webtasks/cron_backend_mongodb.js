@@ -100,11 +100,10 @@ router.post('/reserve',
                 projection: {
                     results: { $slice: 10 }, // Limit to the 10 last results
                 },
+                returnOriginal: false, // Return modified
             };
             
-            return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(filter, update, options, {
-                returnOriginal: false, // Return modified
-            })
+            return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(filter, update, options)
                 .get('value'); // Only pull out the value
         })
         // Don't prevent one failure from blocking the entire
