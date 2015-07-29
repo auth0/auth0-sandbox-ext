@@ -179,7 +179,10 @@ router.post('/:container/:name',
             .get('value')
             .then(function (job) {
                 if (!job) {
-                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                    throw Boom.notFound('No such job `'
+                        + data.cluster_url + '/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
                 }
 
                 return job;
@@ -305,7 +308,10 @@ router.get('/:container/:name',
             })
             .then(function (job) {
                 if (!job) {
-                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                    throw Boom.notFound('No such job `'
+                        + data.cluster_url + '/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
                 }
 
                 return job;
@@ -338,7 +344,10 @@ router.delete('/:container/:name',
             .get('value')
             .then(function (job) {
                 if (!job) {
-                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                    throw Boom.notFound('No such job `'
+                        + data.cluster_url + '/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
                 }
 
                 return job;
@@ -373,7 +382,10 @@ router.get('/:container/:name/history',
             })
             .then(function (job) {
                 if (!job) {
-                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                    throw Boom.notFound('No such job `'
+                        + data.cluster_url + '/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
                 }
 
                 return job;
@@ -418,7 +430,10 @@ router.post('/:container/:name/history',
             .get('value')
             .then(function (job) {
                 if (!job) {
-                    throw Boom.notFound('No such job `' + req.params.name + '`.');
+                    throw Boom.notFound('No such job `'
+                        + data.cluster_url + '/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
                 }
 
                 return job;
