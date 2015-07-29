@@ -3,7 +3,9 @@
 const hbs = require('handlebars');
 
 /** Webtask proxy to authenticate with auth0
- * @param TASK_URL Task to authenticate
+ * @param container task tenant
+ * @param taskname task to authenticate
+ * @param account Auth0 account to use
  */
 
 const VIEW = hbs.compile(`
@@ -32,7 +34,7 @@ const VIEW = hbs.compile(`
 `);
 
 const FUNC_TO_RUN = function() {
-    var lock = new Auth0Lock(CLIENT_ID || 'ODGT86Z8Sx0e92shNVn9N5H8JNGAh8R9', AUTH0_DOMAIN || 'webtaskme.auth0.com');
+    var lock = new Auth0Lock(CLIENT_ID, AUTH0_DOMAIN);
     var lock_opts = {
         authParams: {
             scope: 'openid email'
@@ -54,7 +56,7 @@ const FUNC_TO_RUN = function() {
                     case 'application/json':
                         var parsed = JSON.parse(res.body);
 
-                        document.body.innerHTML      = '<pre>' + JSON.stringify(parsed, null, 1) + '</pre>';
+                        document.body.innerHTML = '<pre>' + JSON.stringify(parsed, null, 1) + '</pre>';
                         break;
                     default:
                         document.body.innerHTML = res.body;
@@ -81,6 +83,11 @@ module.exports = (ctx, req, res) => {
     if(!ctx.data.container || !ctx.data.taskname) {
        res.statusCode = 400;
        res.end('Must provide container & taskname params');
+    }
+
+    if(!ctx.data.account || !(ctx.data.account.client_id && ctx.data.account.domain)) {
+       res.statusCode = 400;
+       res.end('Must provide account param');
     }
 
     var TASK_URL = (ctx.data.baseUrl   || 'https://webtask.it.auth0.com') +
