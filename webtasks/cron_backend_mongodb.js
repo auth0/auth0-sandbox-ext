@@ -20,7 +20,7 @@ app.use(function (req, res, next) {
 
         if (!data[key]) {
             var err = Boom.badGateway('Cron webtask needs to be configured '
-                + 'with the parameter: `' + key + '`.', data);
+                + 'with the parameter: `' + key + '`.');
             return next(err);
         }
     }
