@@ -71,6 +71,7 @@ app.use(function(err, req, res, next) {
 
 
 router.post('/reserve',
+    ensure('headers', ['host']),
     ensure('query', ['count', 'ttl']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -78,12 +79,13 @@ router.post('/reserve',
         var count = Math.max(0, Math.min(100, parseInt(req.query.count, 10)));
         var now = new Date();
         var nextAvailableAt = new Date(now.valueOf() + (parseInt(data.ttl, 10) * 1000));
+        var cluster_host = req.headers.host;
 
         console.log('attempting to reserve ' + count + ' jobs.');
 
         Bluebird.map(_.range(count), function (n) {
             var filter = {
-                cluster_url: data.cluster_url,
+                cluster_url: cluster_host,
                 next_available_at: {
                     $lte: now
                 },
@@ -128,43 +130,48 @@ router.post('/reserve',
         .then(res.json.bind(res), next);
 });
 
-router.get('/:container?', function (req, res, next) {
-    var data = req.webtaskContext.data;
-    var jobs = req.mongo.collection(data.JOB_COLLECTION);
-    var query = {
-        cluster_url: data.cluster_url,
-    };
-
-    // Both admin and user will hit this endpoint. When admin, container can be unset
-    if (req.params.container) query.container = req.params.container;
-
-    var limit = req.query.limit
-        ? Math.max(0, Math.min(20, parseInt(req.query.limit, 10)))
-        : 10;
-    var skip = req.query.offset
-        ? Math.max(0, parseInt(req.query.offset, 10))
-        : 0;
-    var cursor = jobs.find(query)
-        .skip(skip)
-        .limit(limit);
-
-    Bluebird.promisify(cursor.toArray, cursor)()
-        .catch(function (err) {
-            throw Boom.wrap(err, 503, 'Error querying database.');
-        })
-        .map(stripMongoId)
-        .then(res.json.bind(res), next);
+router.get('/:container?',
+    ensure('headers', ['host']),
+    function (req, res, next) {
+        var data = req.webtaskContext.data;
+        var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = req.headers.host;
+        var query = {
+            cluster_url: cluster_host,
+        };
+    
+        // Both admin and user will hit this endpoint. When admin, container can be unset
+        if (req.params.container) query.container = req.params.container;
+    
+        var limit = req.query.limit
+            ? Math.max(0, Math.min(20, parseInt(req.query.limit, 10)))
+            : 10;
+        var skip = req.query.offset
+            ? Math.max(0, parseInt(req.query.offset, 10))
+            : 0;
+        var cursor = jobs.find(query)
+            .skip(skip)
+            .limit(limit);
+    
+        Bluebird.promisify(cursor.toArray, cursor)()
+            .catch(function (err) {
+                throw Boom.wrap(err, 503, 'Error querying database.');
+            })
+            .map(stripMongoId)
+            .then(res.json.bind(res), next);
 });
 
 // Internal handler for updating a job's state
 router.post('/:container/:name',
+    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['criteria', 'updates']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = req.headers.host;
         var query = canonicalizeDates(_.defaults(req.body.criteria, {
-           cluster_url: data.cluster_url,
+           cluster_url: cluster_host,
            container: req.params.container,
            name: req.params.name,
         }));
@@ -180,7 +187,7 @@ router.post('/:container/:name',
             .then(function (job) {
                 if (!job) {
                     throw Boom.notFound('No such job `'
-                        + data.cluster_url + '/'
+                        + cluster_host + '/api/cron/'
                         + req.params.container + '/'
                         + req.params.name + '`.');
                 }
@@ -193,13 +200,14 @@ router.post('/:container/:name',
 
 // Create or update an existing cron job (idempotent)
 router.put('/:container/:name',
+    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['token', 'schedule']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var maxJobsPerContainer = parseInt(data.max_jobs_per_container, 10) || 100;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var now = new Date();
+        var cluster_host = req.headers.host;
         var tokenData = Jwt.decode(req.body.token, {complete: true});
         var intervalOptions = {};
         var nextAvailableAt;
@@ -232,7 +240,7 @@ router.put('/:container/:name',
                 state: 'active',
                 schedule: req.body.schedule,
                 token: req.body.token,
-                cluster_url: data.cluster_url,
+                cluster_url: cluster_host,
                 container: req.params.container,
                 name: req.params.name,
                 expires_at: intervalOptions.endDate || null,
@@ -248,13 +256,13 @@ router.put('/:container/:name',
         };
 
         var countExistingCursor = jobs.find({
-            cluster_url: data.cluster_url,
+            cluster_url: cluster_host,
             container: req.params.container,
         });
         var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
 
         var alreadyExistsCursor = jobs.find({
-            cluster_url: data.cluster_url,
+            cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
         });
@@ -272,7 +280,7 @@ router.put('/:container/:name',
                 }
 
                 return Bluebird.promisify(jobs.findOneAndUpdate, jobs)({
-                    cluster_url: data.cluster_url,
+                    cluster_url: cluster_host,
                     container: req.params.container,
                     name: req.params.name,
                 }, update, {
@@ -289,12 +297,14 @@ router.put('/:container/:name',
 });
 
 router.get('/:container/:name',
+    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = req.headers.host;
         var query = {
-            cluster_url: data.cluster_url,
+            cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
         };
@@ -309,7 +319,7 @@ router.get('/:container/:name',
             .then(function (job) {
                 if (!job) {
                     throw Boom.notFound('No such job `'
-                        + data.cluster_url + '/'
+                        + cluster_host + '/api/cron/'
                         + req.params.container + '/'
                         + req.params.name + '`.');
                 }
@@ -321,12 +331,14 @@ router.get('/:container/:name',
 });
 
 router.delete('/:container/:name',
+    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = req.headers.host;
         var query = {
-            cluster_url: data.cluster_url,
+            cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
         };
@@ -345,7 +357,7 @@ router.delete('/:container/:name',
             .then(function (job) {
                 if (!job) {
                     throw Boom.notFound('No such job `'
-                        + data.cluster_url + '/'
+                        + cluster_host + '/api/cron/'
                         + req.params.container + '/'
                         + req.params.name + '`.');
                 }
@@ -356,12 +368,14 @@ router.delete('/:container/:name',
 });
 
 router.get('/:container/:name/history',
+    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = req.headers.host;
         var query = {
-            cluster_url: data.cluster_url,
+            cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
         };
@@ -383,7 +397,7 @@ router.get('/:container/:name/history',
             .then(function (job) {
                 if (!job) {
                     throw Boom.notFound('No such job `'
-                        + data.cluster_url + '/'
+                        + cluster_host + '/api/cron/'
                         + req.params.container + '/'
                         + req.params.name + '`.');
                 }
@@ -396,14 +410,16 @@ router.get('/:container/:name/history',
 });
 
 router.post('/:container/:name/history',
+    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['created_at', 'type', 'body']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
         var result = canonicalizeDates(req.body);
+        var cluster_host = req.headers.host;
         var query = {
-            cluster_url: data.cluster_url,
+            cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
         };
@@ -431,7 +447,7 @@ router.post('/:container/:name/history',
             .then(function (job) {
                 if (!job) {
                     throw Boom.notFound('No such job `'
-                        + data.cluster_url + '/'
+                        + cluster_host + '/api/cron/'
                         + req.params.container + '/'
                         + req.params.name + '`.');
                 }
