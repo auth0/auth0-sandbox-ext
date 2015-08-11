@@ -13,7 +13,7 @@ var mongo;
 // Check for required configuration parameters
 app.use(function (req, res, next) {
     var data = req.webtaskContext.data;
-    var required = ['JOB_COLLECTION', 'MONGO_URL', 'cluster_url'];
+    var required = ['JOB_COLLECTION', 'MONGO_URL'];
 
     for (var i in required) {
         var key = required[i];
