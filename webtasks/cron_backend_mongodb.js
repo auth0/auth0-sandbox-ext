@@ -210,6 +210,7 @@ router.put('/:container/:name',
         var cluster_host = req.headers.host;
         var tokenData = Jwt.decode(req.body.token, {complete: true});
         var intervalOptions = {};
+        var now = new Date();
         var nextAvailableAt;
 
         if (tokenData.payload.exp) {
@@ -243,6 +244,7 @@ router.put('/:container/:name',
                 cluster_url: cluster_host,
                 container: req.params.container,
                 name: req.params.name,
+                created_at: now,
                 expires_at: intervalOptions.endDate || null,
                 last_scheduled_at: null,
                 next_available_at: nextAvailableAt,
