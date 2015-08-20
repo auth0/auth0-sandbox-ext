@@ -81,7 +81,8 @@ router.post('/reserve',
         var nextAvailableAt = new Date(now.valueOf() + (parseInt(data.ttl, 10) * 1000));
         var cluster_host = req.headers.host;
 
-        console.log('attempting to reserve ' + count + ' jobs.');
+        console.log('attempting to reserve `%n` jobs for cluster `%s` that are available at `%s`.',
+            count, cluster_host, now.toISOString());
 
         Bluebird.map(_.range(count), function (n) {
             var filter = {
