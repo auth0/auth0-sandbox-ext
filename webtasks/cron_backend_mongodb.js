@@ -72,13 +72,13 @@ app.use(function(err, req, res, next) {
 
 router.post('/reserve',
     ensure('headers', ['host']),
-    ensure('query', ['count', 'ttl']),
+    ensure('body', ['count', 'expiry', 'now']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var count = Math.max(0, Math.min(100, parseInt(req.query.count, 10)));
-        var now = new Date();
-        var nextAvailableAt = new Date(now.valueOf() + (parseInt(data.ttl, 10) * 1000));
+        var count = Math.max(0, Math.min(100, parseInt(req.body.count, 10)));
+        var now = canonicalizeDates(req.body.now);
+        var reservationExpiry = canonicalizeDates(req.body.expiry);
         var cluster_host = req.headers.host;
 
         console.log('attempting to reserve `%d` jobs for cluster `%s` that are available at `%s`.',
@@ -94,7 +94,7 @@ router.post('/reserve',
             };
             var update = {
                 $set: {
-                    next_available_at: nextAvailableAt
+                    next_available_at: reservationExpiry
                 }
             };
             var options = {
@@ -246,7 +246,7 @@ router.put('/:container/:name',
                 container: req.params.container,
                 name: req.params.name,
                 expires_at: intervalOptions.endDate || null,
-                last_scheduled_at: null,
+                last_scheduled_at: nextAvailableAt,
                 next_available_at: nextAvailableAt,
                 token_data: tokenData.payload,
             },
@@ -415,7 +415,7 @@ router.get('/:container/:name/history',
 router.post('/:container/:name/history',
     ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
-    ensure('body', ['created_at', 'type', 'body']),
+    ensure('body', ['scheduled_at', 'started_at', 'completed_at', 'type', 'body']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
@@ -472,7 +472,7 @@ function ensure (source, fields) {
 
         for (var i in fields) {
             if (!data[fields[i]]) {
-                return next(Boom.badRequest('Missing ' + source + 'parameter '
+                return next(Boom.badRequest('Missing ' + source + ' parameter '
                     + '`' + fields[i] + '`.'));
             }
         }
