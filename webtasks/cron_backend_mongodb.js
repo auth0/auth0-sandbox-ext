@@ -81,10 +81,11 @@ router.post('/reserve',
         var reservationExpiry = canonicalizeDates(req.body.expiry);
         var cluster_host = req.headers.host;
 
-        console.log('attempting to reserve `%d` jobs for cluster `%s` that are available at `%s`.',
-            count, cluster_host, now.toISOString());
 
-        Bluebird.map(_.range(count), function (n) {
+        console.log('Attempting to reserve `%d` jobs for cluster `%s` that are available at `%s`.',
+            count, cluster_host, now.toISOString());
+        
+        var reservations = _.map(_.range(count), function (n) {
             var filter = {
                 cluster_url: cluster_host,
                 next_available_at: {
@@ -94,7 +95,7 @@ router.post('/reserve',
             };
             var update = {
                 $set: {
-                    next_available_at: reservationExpiry
+                    next_available_at: reservationExpiry,
                 }
             };
             var options = {
@@ -106,11 +107,12 @@ router.post('/reserve',
             
             return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(filter, update, options)
                 .get('value'); // Only pull out the value
-        })
-        // Don't prevent one failure from blocking the entire
-        // reservation (that would mean extra waiting on those that
-        // didn't fail)
-        .settle()
+        });
+
+    // Don't prevent one failure from blocking the entire
+    // reservation (that would mean extra waiting on those that
+    // didn't fail)
+    Bluebird.settle(reservations)
         // Log errors and continue with safe fallback
         .map(function (result) {
             if (result.isRejected()) {
@@ -125,7 +127,7 @@ router.post('/reserve',
         // available for running now)
         .filter(Boolean)
         .tap(function (jobs) {
-            console.log('successfully reserved ' + jobs.length + ' job(s).');
+            console.log('Successfully reserved ' + jobs.length + ' job(s).');
         })
         .map(stripMongoId)
         .then(res.json.bind(res), next);
@@ -196,6 +198,11 @@ router.post('/:container/:name',
                 return job;
             })
             .then(stripMongoId)
+            .tap(function(job) {
+                console.log('Job metadata updated: `' + cluster_host + '/api/cron/'
+                    + req.params.container + '/'
+                    + req.params.name + '`.');
+            })
             .then(res.json.bind(res), next);
 });
 
@@ -296,6 +303,11 @@ router.put('/:container/:name',
                     .get('value');
             })
             .then(stripMongoId)
+            .tap(function(job) {
+                console.log('Created or updated job: `' + cluster_host + '/api/cron/'
+                    + req.params.container + '/'
+                    + req.params.name + '`.');
+            })
             .then(res.json.bind(res), next);
 });
 
@@ -366,6 +378,11 @@ router.delete('/:container/:name',
                 }
 
                 return job;
+            })
+            .tap(function() {
+                console.log('Job destroyed: `' + cluster_host + '/api/cron/'
+                    + req.params.container + '/'
+                    + req.params.name + '`.');
             })
             .then(respondWith204(res), next);
 });
@@ -458,6 +475,11 @@ router.post('/:container/:name/history',
                 return job;
             })
             .then(stripMongoId)
+            .tap(function() {
+                console.log('Job result recorded: `' + cluster_host + '/api/cron/'
+                    + req.params.container + '/'
+                    + req.params.name + '`.');
+            })
             .then(respondWith204(res), next);
 });
 
