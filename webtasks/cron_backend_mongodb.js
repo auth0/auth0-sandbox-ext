@@ -231,17 +231,9 @@ router.put('/:container/:name',
 
         try {
             var interval = Cron.parseExpression(req.body.schedule, intervalOptions);
-            nextAvailableAt = interval.next();
         } catch (e) {
             return next(Boom.badRequest('Invalid cron expression `'
                 + req.body.schedule + '`.', req.body));
-        }
-
-
-        if (!nextAvailableAt) {
-            return next(Boom.badRequest('The provided token\'s `nbf` and `exp` '
-                + 'claims are such that the job would never run with the '
-                + 'schedule `' + req.body.schedule + '`.'));
         }
 
         var update = {
@@ -253,8 +245,6 @@ router.put('/:container/:name',
                 container: req.params.container,
                 name: req.params.name,
                 expires_at: intervalOptions.endDate || null,
-                last_scheduled_at: nextAvailableAt,
-                next_available_at: nextAvailableAt,
                 token_data: tokenData.payload,
             },
             $setOnInsert: {
@@ -271,22 +261,36 @@ router.put('/:container/:name',
         });
         var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
 
-        var alreadyExistsCursor = jobs.find({
+        var alreadyExists = Bluebird.promisify(jobs.findOne, jobs)({
             cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
         });
-        var alreadyExists = Bluebird.promisify(alreadyExistsCursor.count, alreadyExistsCursor)();
 
         Bluebird.all([countExisting, alreadyExists])
             .catch(function (err) {
                 throw Boom.wrap(err, 503, 'Error querying database');
             })
-            .spread(function (sameContainerCount, exists) {
-                if (!exists && sameContainerCount >= maxJobsPerContainer) {
+            .spread(function (sameContainerCount, job) {
+                if (!job && sameContainerCount >= maxJobsPerContainer) {
                     throw Boom.badRequest('Unable to schedule more than '
                         + maxJobsPerContainer
                         + ' jobs per container.');
+                }
+                
+                // If the schedule changed, let's re-calculate `next_available_at`.
+                if (!job || job.schedule !== req.body.schedule) {
+                    try {
+                        nextAvailableAt = interval.next();
+                    } catch (e) {
+                        return next(Boom.badRequest('The provided token\'s `nbf` and `exp` '
+                            + 'claims are such that the job would never run with the '
+                            + 'schedule `' + req.body.schedule + '`.'));
+                        
+                    }
+                    
+                    update.$set.next_available_at = nextAvailableAt;
+                    update.$set.last_scheduled_at = nextAvailableAt;
                 }
 
                 return Bluebird.promisify(jobs.findOneAndUpdate, jobs)({
