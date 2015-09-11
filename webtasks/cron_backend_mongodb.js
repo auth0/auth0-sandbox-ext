@@ -176,7 +176,7 @@ router.post('/:container/:name',
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = CLUSTER_HOST;
+        var cluster_host = data.CLUSTER_HOST;
         var query = canonicalizeDates(_.defaults(req.body.criteria, {
            cluster_url: cluster_host,
            container: req.params.container,
