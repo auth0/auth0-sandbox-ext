@@ -25,6 +25,10 @@ app.use(function (req, res, next) {
         }
     }
 
+    if (!data.CLUSTER_HOST) {
+        data.CLUSTER_HOST = req.headers.host;
+    }
+
     next();
 });
 
@@ -79,7 +83,7 @@ router.post('/reserve',
         var count = Math.max(0, Math.min(100, parseInt(req.body.count, 10)));
         var now = canonicalizeDates(req.body.now);
         var reservationExpiry = canonicalizeDates(req.body.expiry);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
 
 
         console.log('Attempting to reserve `%d` jobs for cluster `%s` that are available at `%s`.',
@@ -138,7 +142,7 @@ router.get('/:container?',
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
         var query = {
             cluster_url: cluster_host,
         };
@@ -172,7 +176,7 @@ router.post('/:container/:name',
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = req.headers.host;
+        var cluster_host = CLUSTER_HOST;
         var query = canonicalizeDates(_.defaults(req.body.criteria, {
            cluster_url: cluster_host,
            container: req.params.container,
@@ -215,7 +219,7 @@ router.put('/:container/:name',
         var data = req.webtaskContext.data;
         var maxJobsPerContainer = parseInt(data.max_jobs_per_container, 10) || 100;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
         var tokenData = Jwt.decode(req.body.token, {complete: true});
         var intervalOptions = {};
         var now = new Date();
@@ -321,7 +325,7 @@ router.get('/:container/:name',
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
         var query = {
             cluster_url: cluster_host,
             container: req.params.container,
@@ -355,7 +359,7 @@ router.delete('/:container/:name',
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
         var query = {
             cluster_url: cluster_host,
             container: req.params.container,
@@ -397,7 +401,7 @@ router.get('/:container/:name/history',
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
         var query = {
             cluster_url: cluster_host,
             container: req.params.container,
@@ -441,7 +445,7 @@ router.post('/:container/:name/history',
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
         var result = canonicalizeDates(req.body);
-        var cluster_host = req.headers.host;
+        var cluster_host = data.CLUSTER_HOST;
         var query = {
             cluster_url: cluster_host,
             container: req.params.container,
