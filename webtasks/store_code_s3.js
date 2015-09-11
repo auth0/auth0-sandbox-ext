@@ -1,6 +1,10 @@
 var aws = require('aws-sdk');
 var initialized;
 
+// Set max sockets limit on http to enable large number of concurrent etcd watchers
+require('http').globalAgent.maxSockets = 5000;
+require('https').globalAgent.maxSockets = 5000;
+
 return function (context, req, res) {
 
     console.log('Request: ', { 

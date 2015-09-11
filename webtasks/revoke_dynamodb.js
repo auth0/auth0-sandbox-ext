@@ -1,6 +1,8 @@
-// Raw version of this file: https://raw.githubusercontent.com/auth0/auth-sandbox-ext/master/webtask/revoke_dynamodb.js
-
 var dynamo;
+
+// Set max sockets limit on http to enable large number of concurrent etcd watchers
+require('http').globalAgent.maxSockets = 5000;
+require('https').globalAgent.maxSockets = 5000;
 
 return function (context, req, res) {
 
