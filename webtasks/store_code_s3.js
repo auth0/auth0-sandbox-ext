@@ -93,7 +93,8 @@ return function (context, req, res) {
                     disable_parse_body: true,
                     disable_merge_body: true,
                     disable_self_revocation: true,
-                    delegation_depth: 0
+                    delegation_depth: 0,
+                    issuer_url: context.data.issuer_url,
                 }, function (err, url) {
                     if (err) {
                         return error(502, err.stack || err.message || err);
