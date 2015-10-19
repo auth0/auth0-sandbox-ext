@@ -5,7 +5,8 @@
     "url": "http://tomasz.janczuk.org",
     "twitter": "tjanczuk"
   },
-  "version": "0.1.0-pre",
+  "version": "1.0.0",
+  "main": "./lib/index.js",
   "description": "Webtask extensions of Auth0 Webtask",
   "tags": [
     "auth0",

@@ -5,7 +5,7 @@ var initialized;
 require('http').globalAgent.maxSockets = 5000;
 require('https').globalAgent.maxSockets = 5000;
 
-return function (context, req, res) {
+module.exports = function (context, req, res) {
 
     console.log('Request: ', { 
         bucket: context.data.bucket, 

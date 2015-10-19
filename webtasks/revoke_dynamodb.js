@@ -4,7 +4,7 @@ var dynamo;
 require('http').globalAgent.maxSockets = 5000;
 require('https').globalAgent.maxSockets = 5000;
 
-return function (context, req, res) {
+module.exports = function (context, req, res) {
 
     if (req.method !== 'PUT' && req.method !== 'GET') {
         return error(405);
