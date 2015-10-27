@@ -224,6 +224,17 @@ router.put('/:container/:name',
         var intervalOptions = {};
         var now = new Date();
         var nextAvailableAt;
+        var state = 'active';
+        var validStates = ['active', 'inactive'];
+        
+        if (req.body.state) {
+            if (validStates.indexOf(req.body.state) < 0) {
+                return next(Boom.badRequest('Job `state` must be one of: '
+                    + validStates.join(', ') + '`.'));
+            }
+            
+            state = req.body.state;
+        }
 
         if (tokenData.payload.exp) {
             intervalOptions.endDate = new Date(tokenData.payload.exp * 1000);
@@ -242,7 +253,7 @@ router.put('/:container/:name',
 
         var update = {
             $set: {
-                state: 'active',
+                state: state,
                 schedule: req.body.schedule,
                 token: req.body.token,
                 cluster_url: cluster_host,
@@ -317,6 +328,71 @@ router.put('/:container/:name',
                     + req.params.name + '`.');
             })
             .then(res.json.bind(res), next);
+});
+
+router.put('/:container/:name/state',
+    ensure('headers', ['host']),
+    ensure('params', ['container', 'name']),
+    function (req, res, next) {
+        var validStates = ['active', 'inactive'];
+        var data = req.webtaskContext.data;
+        var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = data.CLUSTER_HOST;
+        var state = req.body.state || req.query.state;
+        
+        if (validStates.indexOf(state) < 0) {
+            return next(Boom.badRequest('A job\'s state can only be set to one '
+                + 'of `' + validStates.join('`, `') + '`.'));
+        }
+        
+        var query = {
+            cluster_url: cluster_host,
+            container: req.params.container,
+            name: req.params.name,
+        };
+
+        var projection = {
+            results: { $slice: 1 },
+        };
+    
+        Bluebird.promisify(jobs.findOne, jobs)(query, projection)
+            .catch(function (err) {
+                throw Boom.wrap(err, 503, 'Error querying database.');
+            })
+            .then(function (job) {
+                if (!job) {
+                    throw Boom.notFound('No such job `'
+                        + cluster_host + '/api/cron/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
+                }
+    
+                return job;
+            })
+            .then(function (job) {
+                if (validStates.indexOf(job.state) < 0) {
+                    return next(Boom.preconditionFailed('The job is in an invalid state.'));
+                }
+                
+                // Make sure that no intervening action changed the job's state.
+                query.state = job.state;
+                
+                var update = {
+                    $set: {
+                        state: state,
+                    }
+                };
+                
+                var options = {
+                    projection: projection,
+                    returnOriginal: false, // Return modified
+                };
+                
+                return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, update, options)
+                    .get('value'); // Only pull out the value
+            })
+                .map(stripMongoId)
+                .then(res.json.bind(res), next);
 });
 
 router.get('/:container/:name',
@@ -533,5 +609,11 @@ function stripMongoId (doc) {
 function respondWith204 (res) {
     return function () {
         res.status(204).send();
+    };
+}
+
+function toggleJobStatus(state) {
+        
+    return function (req, res, next) {
     };
 }
