@@ -391,8 +391,8 @@ router.put('/:container/:name/state',
                 return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, update, options)
                     .get('value'); // Only pull out the value
             })
-                .map(stripMongoId)
-                .then(res.json.bind(res), next);
+            .then(stripMongoId)
+            .then(res.json.bind(res), next);
 });
 
 router.get('/:container/:name',
