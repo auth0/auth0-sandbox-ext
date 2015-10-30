@@ -50,7 +50,7 @@ app.use(function (req, res, next) {
             mongo = req.mongo = db;
         })
         .catch(function (err) {
-            throw Boom.wrap(err, 503, 'Database unreachable.');
+            throw Boom.wrap(err, 502, 'Database unreachable.');
         })
         .nodeify(next);
 });
@@ -159,7 +159,7 @@ router.get('/:container?',
     
         Bluebird.promisify(cursor.toArray, cursor)()
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database.');
+                throw Boom.wrap(err, 502, 'Error querying database.');
             })
             .map(stripMongoId)
             .then(res.json.bind(res), next);
@@ -184,7 +184,7 @@ router.post('/:container/:name',
             returnOriginal: false,
         })
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error updating database');
+                throw Boom.wrap(err, 502, 'Error updating database');
             })
             .get('value')
             .then(function (job) {
@@ -270,7 +270,7 @@ router.put('/:container/:name',
 
         Bluebird.all([countExisting, alreadyExists])
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database');
+                throw Boom.wrap(err, 502, 'Error querying database');
             })
             .spread(function (sameContainerCount, job) {
                 if (!job && sameContainerCount >= maxJobsPerContainer) {
@@ -303,7 +303,7 @@ router.put('/:container/:name',
                     upsert: true,
                 })
                     .catch(function (err) {
-                        throw Boom.wrap(err, 503, 'Error updating database');
+                        throw Boom.wrap(err, 502, 'Error updating database');
                     })
                     .get('value');
             })
@@ -338,7 +338,7 @@ router.put('/:container/:name/state',
     
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database.');
+                throw Boom.wrap(err, 502, 'Error querying database.');
             })
             .then(function (job) {
                 if (!job) {
@@ -393,7 +393,7 @@ router.get('/:container/:name',
 
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database.');
+                throw Boom.wrap(err, 502, 'Error querying database.');
             })
             .then(function (job) {
                 if (!job) {
@@ -429,7 +429,7 @@ router.delete('/:container/:name',
         Bluebird.promisify(jobs.findAndRemove, jobs)(query, sort, {})
             .catch(function (err) {
                 console.log(err);
-                throw Boom.wrap(err, 503, 'Error querying database');
+                throw Boom.wrap(err, 502, 'Error querying database');
             })
             .get('value')
             .then(function (job) {
@@ -474,7 +474,7 @@ router.get('/:container/:name/history',
 
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database');
+                throw Boom.wrap(err, 502, 'Error querying database');
             })
             .then(function (job) {
                 if (!job) {
@@ -522,7 +522,7 @@ router.post('/:container/:name/history',
             returnOriginal: false,
         })
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error updating database');
+                throw Boom.wrap(err, 502, 'Error updating database');
             })
             .get('value')
             .then(function (job) {
