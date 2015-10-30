@@ -75,7 +75,6 @@ app.use(function(err, req, res, next) {
 
 
 router.post('/reserve',
-    ensure('headers', ['host']),
     ensure('body', ['count', 'expiry', 'now']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -84,7 +83,6 @@ router.post('/reserve',
         var now = canonicalizeDates(req.body.now);
         var reservationExpiry = canonicalizeDates(req.body.expiry);
         var cluster_host = data.CLUSTER_HOST;
-
 
         console.log('Attempting to reserve `%d` jobs for cluster `%s` that are available at `%s`.',
             count, cluster_host, now.toISOString());
@@ -138,7 +136,6 @@ router.post('/reserve',
 });
 
 router.get('/:container?',
-    ensure('headers', ['host']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
@@ -170,7 +167,6 @@ router.get('/:container?',
 
 // Internal handler for updating a job's state
 router.post('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['criteria', 'updates']),
     function (req, res, next) {
@@ -212,9 +208,9 @@ router.post('/:container/:name',
 
 // Create or update an existing cron job (idempotent)
 router.put('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['token', 'schedule']),
+    validateStates,
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var maxJobsPerContainer = parseInt(data.max_jobs_per_container, 10) || 100;
@@ -224,17 +220,7 @@ router.put('/:container/:name',
         var intervalOptions = {};
         var now = new Date();
         var nextAvailableAt;
-        var state = 'active';
-        var validStates = ['active', 'inactive'];
-        
-        if (req.body.state) {
-            if (validStates.indexOf(req.body.state) < 0) {
-                return next(Boom.badRequest('Job `state` must be one of: '
-                    + validStates.join(', ') + '`.'));
-            }
-            
-            state = req.body.state;
-        }
+        var state = req.fromState;
 
         if (tokenData.payload.exp) {
             intervalOptions.endDate = new Date(tokenData.payload.exp * 1000);
@@ -331,20 +317,15 @@ router.put('/:container/:name',
 });
 
 router.put('/:container/:name/state',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
+    validateStates,
     function (req, res, next) {
         var validStates = ['active', 'inactive'];
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
         var cluster_host = data.CLUSTER_HOST;
-        var state = req.body.state || req.query.state;
-        
-        if (validStates.indexOf(state) < 0) {
-            return next(Boom.badRequest('A job\'s state can only be set to one '
-                + 'of `' + validStates.join('`, `') + '`.'));
-        }
-        
+        var state = req.body.fromState;
+
         var query = {
             cluster_url: cluster_host,
             container: req.params.container,
@@ -396,7 +377,6 @@ router.put('/:container/:name/state',
 });
 
 router.get('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -430,7 +410,6 @@ router.get('/:container/:name',
 });
 
 router.delete('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -472,7 +451,6 @@ router.delete('/:container/:name',
 });
 
 router.get('/:container/:name/history',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -514,7 +492,6 @@ router.get('/:container/:name/history',
 });
 
 router.post('/:container/:name/history',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['scheduled_at', 'started_at', 'completed_at', 'type', 'body']),
     function (req, res, next) {
@@ -612,8 +589,18 @@ function respondWith204 (res) {
     };
 }
 
-function toggleJobStatus(state) {
-        
-    return function (req, res, next) {
-    };
+function validateStates(req, res, next) {
+    var validStates = ['active', 'inactive'];
+    var state = req.body.state || req.query.state;
+    
+    if (state) {
+        if (validStates.indexOf(state) < 0) {
+            return next(Boom.badRequest('Job `state` must be one of: '
+                + validStates.join(', ') + '`.'));
+        }
+    }
+    
+    req.fromState = state || 'active';
+    
+    next();
 }
