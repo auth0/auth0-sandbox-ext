@@ -50,7 +50,7 @@ app.use(function (req, res, next) {
             mongo = req.mongo = db;
         })
         .catch(function (err) {
-            throw Boom.wrap(err, 503, 'Database unreachable.');
+            throw Boom.wrap(err, 502, 'Database unreachable.');
         })
         .nodeify(next);
 });
@@ -75,7 +75,6 @@ app.use(function(err, req, res, next) {
 
 
 router.post('/reserve',
-    ensure('headers', ['host']),
     ensure('body', ['count', 'expiry', 'now']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -84,7 +83,6 @@ router.post('/reserve',
         var now = canonicalizeDates(req.body.now);
         var reservationExpiry = canonicalizeDates(req.body.expiry);
         var cluster_host = data.CLUSTER_HOST;
-
 
         console.log('Attempting to reserve `%d` jobs for cluster `%s` that are available at `%s`.',
             count, cluster_host, now.toISOString());
@@ -138,7 +136,6 @@ router.post('/reserve',
 });
 
 router.get('/:container?',
-    ensure('headers', ['host']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
@@ -162,7 +159,7 @@ router.get('/:container?',
     
         Bluebird.promisify(cursor.toArray, cursor)()
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database.');
+                throw Boom.wrap(err, 502, 'Error querying database.');
             })
             .map(stripMongoId)
             .then(res.json.bind(res), next);
@@ -170,7 +167,6 @@ router.get('/:container?',
 
 // Internal handler for updating a job's state
 router.post('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['criteria', 'updates']),
     function (req, res, next) {
@@ -188,7 +184,7 @@ router.post('/:container/:name',
             returnOriginal: false,
         })
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error updating database');
+                throw Boom.wrap(err, 502, 'Error updating database');
             })
             .get('value')
             .then(function (job) {
@@ -212,9 +208,9 @@ router.post('/:container/:name',
 
 // Create or update an existing cron job (idempotent)
 router.put('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['token', 'schedule']),
+    validateStates,
     function (req, res, next) {
         var data = req.webtaskContext.data;
         var maxJobsPerContainer = parseInt(data.max_jobs_per_container, 10) || 100;
@@ -224,6 +220,7 @@ router.put('/:container/:name',
         var intervalOptions = {};
         var now = new Date();
         var nextAvailableAt;
+        var state = req.fromState;
 
         if (tokenData.payload.exp) {
             intervalOptions.endDate = new Date(tokenData.payload.exp * 1000);
@@ -242,7 +239,7 @@ router.put('/:container/:name',
 
         var update = {
             $set: {
-                state: 'active',
+                state: state,
                 schedule: req.body.schedule,
                 token: req.body.token,
                 cluster_url: cluster_host,
@@ -273,7 +270,7 @@ router.put('/:container/:name',
 
         Bluebird.all([countExisting, alreadyExists])
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database');
+                throw Boom.wrap(err, 502, 'Error querying database');
             })
             .spread(function (sameContainerCount, job) {
                 if (!job && sameContainerCount >= maxJobsPerContainer) {
@@ -306,7 +303,7 @@ router.put('/:container/:name',
                     upsert: true,
                 })
                     .catch(function (err) {
-                        throw Boom.wrap(err, 503, 'Error updating database');
+                        throw Boom.wrap(err, 502, 'Error updating database');
                     })
                     .get('value');
             })
@@ -319,8 +316,67 @@ router.put('/:container/:name',
             .then(res.json.bind(res), next);
 });
 
+router.put('/:container/:name/state',
+    ensure('params', ['container', 'name']),
+    validateStates,
+    function (req, res, next) {
+        var validStates = ['active', 'inactive'];
+        var data = req.webtaskContext.data;
+        var jobs = req.mongo.collection(data.JOB_COLLECTION);
+        var cluster_host = data.CLUSTER_HOST;
+        var state = req.body.fromState;
+
+        var query = {
+            cluster_url: cluster_host,
+            container: req.params.container,
+            name: req.params.name,
+        };
+
+        var projection = {
+            results: { $slice: 1 },
+        };
+    
+        Bluebird.promisify(jobs.findOne, jobs)(query, projection)
+            .catch(function (err) {
+                throw Boom.wrap(err, 502, 'Error querying database.');
+            })
+            .then(function (job) {
+                if (!job) {
+                    throw Boom.notFound('No such job `'
+                        + cluster_host + '/api/cron/'
+                        + req.params.container + '/'
+                        + req.params.name + '`.');
+                }
+    
+                return job;
+            })
+            .then(function (job) {
+                if (validStates.indexOf(job.state) < 0) {
+                    return next(Boom.preconditionFailed('The job is in an invalid state.'));
+                }
+                
+                // Make sure that no intervening action changed the job's state.
+                query.state = job.state;
+                
+                var update = {
+                    $set: {
+                        state: state,
+                    }
+                };
+                
+                var options = {
+                    projection: projection,
+                    returnOriginal: false, // Return modified
+                };
+                
+                return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, update, options)
+                    .get('value'); // Only pull out the value
+            })
+            .then(stripMongoId)
+            .then(res.json.bind(res), next);
+});
+
 router.get('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -337,7 +393,7 @@ router.get('/:container/:name',
 
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database.');
+                throw Boom.wrap(err, 502, 'Error querying database.');
             })
             .then(function (job) {
                 if (!job) {
@@ -354,7 +410,6 @@ router.get('/:container/:name',
 });
 
 router.delete('/:container/:name',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -374,7 +429,7 @@ router.delete('/:container/:name',
         Bluebird.promisify(jobs.findAndRemove, jobs)(query, sort, {})
             .catch(function (err) {
                 console.log(err);
-                throw Boom.wrap(err, 503, 'Error querying database');
+                throw Boom.wrap(err, 502, 'Error querying database');
             })
             .get('value')
             .then(function (job) {
@@ -396,7 +451,6 @@ router.delete('/:container/:name',
 });
 
 router.get('/:container/:name/history',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     function (req, res, next) {
         var data = req.webtaskContext.data;
@@ -420,7 +474,7 @@ router.get('/:container/:name/history',
 
         Bluebird.promisify(jobs.findOne, jobs)(query, projection)
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error querying database');
+                throw Boom.wrap(err, 502, 'Error querying database');
             })
             .then(function (job) {
                 if (!job) {
@@ -438,7 +492,6 @@ router.get('/:container/:name/history',
 });
 
 router.post('/:container/:name/history',
-    ensure('headers', ['host']),
     ensure('params', ['container', 'name']),
     ensure('body', ['scheduled_at', 'started_at', 'completed_at', 'type', 'body']),
     function (req, res, next) {
@@ -469,7 +522,7 @@ router.post('/:container/:name/history',
             returnOriginal: false,
         })
             .catch(function (err) {
-                throw Boom.wrap(err, 503, 'Error updating database');
+                throw Boom.wrap(err, 502, 'Error updating database');
             })
             .get('value')
             .then(function (job) {
@@ -534,4 +587,20 @@ function respondWith204 (res) {
     return function () {
         res.status(204).send();
     };
+}
+
+function validateStates(req, res, next) {
+    var validStates = ['active', 'inactive'];
+    var state = req.body.state || req.query.state;
+    
+    if (state) {
+        if (validStates.indexOf(state) < 0) {
+            return next(Boom.badRequest('Job `state` must be one of: '
+                + validStates.join(', ') + '`.'));
+        }
+    }
+    
+    req.fromState = state || 'active';
+    
+    next();
 }
