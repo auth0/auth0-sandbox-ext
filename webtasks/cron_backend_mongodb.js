@@ -324,7 +324,7 @@ router.put('/:container/:name/state',
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
         var cluster_host = data.CLUSTER_HOST;
-        var state = req.body.fromState;
+        var state = req.fromState;
 
         var query = {
             cluster_url: cluster_host,
