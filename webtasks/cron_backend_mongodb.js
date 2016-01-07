@@ -41,14 +41,11 @@ app.use(function (req, res, next) {
     }
 
     var MongoClient = require('mongodb').MongoClient;
-    var connect = Bluebird.promisify(MongoClient.connect, MongoClient);
-    var data = req.webtaskContext.data;
-
-    return connect(data.MONGO_URL)
-        .then(function (db) {
-            // Store the settled promise resolving to the db object
-            mongo = req.mongo = db;
-        })
+    var secrets = req.webtaskContext.secrets;
+    
+    return MongoClient.connect(secrets.MONGO_URL, {
+        promiseLibrary: Bluebird,
+    })
         .catch(function (err) {
             throw Boom.wrap(err, 502, 'Database unreachable.');
         })
@@ -102,12 +99,12 @@ router.post('/reserve',
             };
             var options = {
                 projection: {
-                    results: { $slice: 10 }, // Limit to the 10 last results
+                    results: 0, // Not interested in results
                 },
                 returnOriginal: false, // Return modified
             };
             
-            return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(filter, update, options)
+            return jobs.findOneAndUpdate(filter, update, options)
                 .get('value'); // Only pull out the value
         });
 
@@ -153,11 +150,15 @@ router.get('/:container?',
         var skip = req.query.offset
             ? Math.max(0, parseInt(req.query.offset, 10))
             : 0;
+        var projection = {
+            results: { $slice: 1 },
+        };
         var cursor = jobs.find(query)
+            .project(projection)
             .skip(skip)
             .limit(limit);
-    
-        Bluebird.promisify(cursor.toArray, cursor)()
+        
+        cursor.toArray()
             .catch(function (err) {
                 throw Boom.wrap(err, 502, 'Error querying database.');
             })
@@ -180,7 +181,10 @@ router.post('/:container/:name',
         }));
         var updates = { $set: canonicalizeDates(req.body.updates) };
 
-        Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, updates, {
+        jobs.findOneAndUpdate(query, updates, {
+            projection: {
+                results: 0, // Exclude results
+            },
             returnOriginal: false,
         })
             .catch(function (err) {
@@ -260,13 +264,19 @@ router.put('/:container/:name',
             cluster_url: cluster_host,
             container: req.params.container,
         });
-        var countExisting = Bluebird.promisify(countExistingCursor.count, countExistingCursor)();
+        var countExisting = countExistingCursor.count();
 
-        var alreadyExists = Bluebird.promisify(jobs.findOne, jobs)({
+        var alreadyExistsCursor = jobs.find({
             cluster_url: cluster_host,
             container: req.params.container,
             name: req.params.name,
-        });
+        })
+            .limit(1)
+            // Limit the data returned
+            .project({
+                schedule: 1,
+            });
+        var alreadyExists = alreadyExistsCursor.next();
 
         Bluebird.all([countExisting, alreadyExists])
             .catch(function (err) {
@@ -294,13 +304,18 @@ router.put('/:container/:name',
                     update.$set.last_scheduled_at = nextAvailableAt;
                 }
 
-                return Bluebird.promisify(jobs.findOneAndUpdate, jobs)({
+                return jobs.findOneAndUpdate({
                     cluster_url: cluster_host,
                     container: req.params.container,
                     name: req.params.name,
                 }, update, {
                     returnOriginal: false,
                     upsert: true,
+                    projection: {
+                        results: {
+                            $slice: 1,
+                        },
+                    },
                 })
                     .catch(function (err) {
                         throw Boom.wrap(err, 502, 'Error updating database');
@@ -324,7 +339,7 @@ router.put('/:container/:name/state',
         var data = req.webtaskContext.data;
         var jobs = req.mongo.collection(data.JOB_COLLECTION);
         var cluster_host = data.CLUSTER_HOST;
-        var state = req.body.fromState;
+        var state = req.fromState;
 
         var query = {
             cluster_url: cluster_host,
@@ -336,7 +351,12 @@ router.put('/:container/:name/state',
             results: { $slice: 1 },
         };
     
-        Bluebird.promisify(jobs.findOne, jobs)(query, projection)
+        jobs.find(query)
+            .project({
+                state: 1,
+            })
+            .limit(1)
+            .next()
             .catch(function (err) {
                 throw Boom.wrap(err, 502, 'Error querying database.');
             })
@@ -347,10 +367,7 @@ router.put('/:container/:name/state',
                         + req.params.container + '/'
                         + req.params.name + '`.');
                 }
-    
-                return job;
-            })
-            .then(function (job) {
+                
                 if (validStates.indexOf(job.state) < 0) {
                     return next(Boom.preconditionFailed('The job is in an invalid state.'));
                 }
@@ -369,7 +386,7 @@ router.put('/:container/:name/state',
                     returnOriginal: false, // Return modified
                 };
                 
-                return Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, update, options)
+                return jobs.findOneAndUpdate(query, update, options)
                     .get('value'); // Only pull out the value
             })
             .then(stripMongoId)
@@ -391,7 +408,7 @@ router.get('/:container/:name',
             results: { $slice: 1 },
         };
 
-        Bluebird.promisify(jobs.findOne, jobs)(query, projection)
+        jobs.findOne(query, projection)
             .catch(function (err) {
                 throw Boom.wrap(err, 502, 'Error querying database.');
             })
@@ -420,13 +437,15 @@ router.delete('/:container/:name',
             container: req.params.container,
             name: req.params.name,
         };
-        var sort = {
-            cluster_url: 1,
-            container: 1,
-            name: 1,
+        var options = {
+            projection: {
+                cluster_url: 1,
+                container: 1,
+                name: 1,
+            },
         };
 
-        Bluebird.promisify(jobs.findAndRemove, jobs)(query, sort, {})
+        jobs.findOneAndDelete(query, options)
             .catch(function (err) {
                 console.log(err);
                 throw Boom.wrap(err, 502, 'Error querying database');
@@ -472,7 +491,10 @@ router.get('/:container/:name/history',
             results: { $slice: [skip, limit] },
         };
 
-        Bluebird.promisify(jobs.findOne, jobs)(query, projection)
+        jobs.find(query)
+            .project(projection)
+            .limit(1)
+            .next()
             .catch(function (err) {
                 throw Boom.wrap(err, 502, 'Error querying database');
             })
@@ -518,7 +540,10 @@ router.post('/:container/:name/history',
             }
         };
 
-        Bluebird.promisify(jobs.findOneAndUpdate, jobs)(query, update, {
+        jobs.findOneAndUpdate(query, update, {
+            projection: {
+                results: 0,
+            },
             returnOriginal: false,
         })
             .catch(function (err) {
