@@ -46,6 +46,9 @@ app.use(function (req, res, next) {
     return MongoClient.connect(secrets.MONGO_URL, {
         promiseLibrary: Bluebird,
     })
+        .then(function(db) {
+            mongo = req.mongo = db;
+        })
         .catch(function (err) {
             throw Boom.wrap(err, 502, 'Database unreachable.');
         })
