@@ -101,9 +101,6 @@ router.post('/reserve',
                 }
             };
             var options = {
-                projection: {
-                    results: 0, // Not interested in results
-                },
                 returnOriginal: false, // Return modified
             };
             
