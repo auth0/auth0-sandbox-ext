@@ -35,5 +35,8 @@
   },
   "bugs": {
     "url": "http://github.com/auth0/auth0-sandbox-ext/issues"
+  },
+  "publishConfig": {
+    "registry": "https://a0us.jfrog.io/a0us/api/npm/npm/"
   }
 }
